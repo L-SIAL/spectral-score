@@ -362,7 +362,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
         <div class="lane-head">
           <span class="lh">Envelope</span>
           <span class="lu" id="laneUnit">No unit selected</span>
-          <span class="segbtns" role="group" aria-label="Envelope type"><button class="chip on" id="laneVol" aria-pressed="true" title="Loudness envelope">Loudness</button><button class="chip" id="lanePan" aria-pressed="false" title="Pan envelope: left to right across the unit">Pan</button></span>
+          <span class="segbtns" role="group" aria-label="Envelope type"><button class="chip on" id="laneVol" aria-pressed="true" title="Loudness envelope">Loudness</button><button class="chip" id="lanePan" aria-pressed="false" title="Pan: the centre of the unit's voices, left to right across the unit">Pan</button><button class="chip" id="laneSpread" aria-pressed="false" title="Spread: how far the Spatialisation law spreads the voices, 0 = all at the centre">Spread</button></span>
           <select id="envTarget" aria-label="Envelope for"></select>
           <button class="chip" id="loopBtn">▶ Loop unit</button>
           <button class="chip rec" id="recBtn" title="Play the unit once and record the fader">● Record</button>
@@ -480,7 +480,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
     <label>Name <input id="mrName" type="text" autocomplete="off" style="width: 14em" aria-label="Name"></label>
     <span class="selrow"><button class="btn primary" id="mrOk">Done</button><button class="btn warn" id="mrDel">Delete</button><button class="btn" id="mrCancel">Cancel</button></span></div>
   <div class="askbar" id="askBar" hidden><span id="askText"></span><span class="selrow" id="askBtns"></span></div>
-  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v64</span></div>
+  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v65</span></div>
 </div>
 
 <div class="laypop" id="layerDots" role="menu" aria-label="Layer to draw on" hidden></div>
@@ -2445,6 +2445,7 @@ function envSlice(pts, k0, k1) {
 function splitEnvs(u, o, k0, k1) {
   if (o.env) u.env = envSlice(o.env, k0, k1);
   if (o.pan_env) u.pan_env = envSlice(o.pan_env, k0, k1);
+  if (o.spread_env) u.spread_env = envSlice(o.spread_env, k0, k1);   // v65
   if (o.mods) u.mods = o.mods.map(m => Object.assign({}, m, { pts: envSlice(m.pts, k0, k1) }));
   if (o.note_env) { u.note_env = {}; for (const key of Object.keys(o.note_env)) u.note_env[key] = envSlice(o.note_env[key], k0, k1); }
 }
@@ -3346,6 +3347,7 @@ function toJSON() {
     envelope_format: 'env and note_env points are [position 0-1 across the unit, loudness 0-1, curve, tension 0-1]; curve shapes the segment to the next point. They stretch with the unit. note_env is keyed by partial Hz and overrides env for that note. Loudness is on a 60 dB scale (1 = 0 dB, 0.5 = −30 dB, 0 = −60 dB/off) and maps to CC11/43.',
     mod_format: 'mods (optional, per unit, up to 3) = [{ k: control key, s: plug-in slider number, e: engine, l: label, pts }]; pts are [position 0-1 across the unit, value 0-1 across the control range (log controls on a log scale), curve, tension] and give the control its value over time (they replace the preset value). Intended for per-channel 14-bit CC pairs on the Mac (slot 1 CC 16/48, slot 2 CC 17/49, slot 3 CC 18/50; slot target = slider number on CC 102/103/104).',
     pan_format: 'pan_env (optional, per unit) points are [position 0-1 across the unit, pan 0-1 (0 = left, 0.5 = centre, 1 = right), curve, tension]; same curves as env. Absent = centre. Intended for per-channel CC10 on the Mac.',
+    space_format: 'v65 Spatialisation. space (optional, per unit) = {law: centre|pitch|pitch_rev|fan|oddeven|zones|golden|entry|random, spread 0-1, rotate (turns across the unit), pattern: fixed|pingpong|sweep|walk|random|cycle, step 0-1, seed}. spread_env = [position, spread 0-1, curve, tension]. Each voice gets its own azimuth (centre from pan_env, plus spread x its law position x 90 deg, plus rotation); the Mac writes it as 14-bit CC10/42 on the voice\'s own MIDI channel, CC105 = 1.',
     envelope_curves: { lin: 'linear (REAPER CC shape 1)', exp: 'slow start, fast end (REAPER CC shape 4, fast end; tension sets steepness)', log: 'fast start, slow end (REAPER CC shape 3, fast start)', s: 'slow start and end (REAPER CC shape 2)', smooth: 'monotone spline through the points (REAPER CC shape 5, bezier, or dense CCs)', hold: 'step (REAPER CC shape 0, square)' },
     shape_library: userShapes,
     outline_format: 'shape (optional) = { base_hz: [lo, hi], left_hz: [lo, hi], right_hz: [lo, hi] }. Each note keeps its relative log position between the lower and upper edge; the edges run straight from the unit start (left) to its end (right). Write as 14-bit pitch bend glissandi, one note per channel.',
@@ -3951,6 +3953,7 @@ function tapFinish() {
   changed(true);
   status(`Tapped ${tp.times.length} pulses over ${dur.toFixed(2)} s. Stretch the unit to compress or expand the rhythm; ▶ Unit to hear it.`);
 }
+Object.assign(window.__lh, { unitVoices: (u, k) => unitVoices(u, k), spaceHome: (sp, vs) => spaceHome(sp, vs), setLaneMode: m => setLaneMode(m), renderInspector: () => renderInspector() });   // v65 test hooks
 // ---- v39: Settings split into Unit | Score tabs
 var lastTabSel = null;
 state.sideTab = 'unit';
@@ -3981,6 +3984,44 @@ function addLayer() {
   const L = normLayer({ id: 'L' + uid(), name: 'Layer ' + n, engine: 'LH_Synth_Additive', hue, style: LAYER_STYLES[LAYERS.length % LAYER_STYLES.length] });
   LAYERS.push(L); state.view[L.id] = 'full'; state.layer = L.id; syncVisible(); changed(false); renderInspector();
   status(`Added ${L.name}: you draw on it now. Name it, give it a colour and a sound in its row.`);
+}
+// v65: Settings › Unit › Spatialisation
+function spaceBox(u) {
+  const sp = u.space, o = (list, cur) => list.map(([k, l]) => `<option value="${k}" ${k === cur ? 'selected' : ''}>${l}</option>`).join('');
+  const rng = (id, lab, out, min, max, step, val) => `<div class="prm"><label for="${id}">${lab}<output id="${id}o">${out}</output></label><input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${val}"></div>`;
+  const rf = r => Math.abs(r) < 0.005 ? 'none' : (r > 0 ? '+' : '') + r.toFixed(2) + ' turns';
+  return `<section><h2>Spatialisation</h2>
+    <p class="note">Each voice (a partial, a grain, a pulse) gets its own place and path. On the Mac every voice has its own MIDI channel, so this is written as its own 14-bit azimuth.</p>
+    <div class="prm"><label for="spLaw">Law</label><select id="spLaw" class="selrow"><option value="" ${sp ? '' : 'selected'}>Off${u.pan_env && u.pan_env.length > 1 ? ' (pan lane only)' : ''}</option>${o(SPACE_LAWS, sp && sp.law)}</select></div>
+    ${sp ? `${rng('spSpr', u.spread_env ? 'Spread (lane drawn)' : 'Spread', Math.round((sp.spread == null ? 1 : sp.spread) * 100) + '%', 0, 100, 1, Math.round((sp.spread == null ? 1 : sp.spread) * 100))}
+    ${rng('spRot', 'Rotation', rf(sp.rotate || 0), -8, 8, 0.05, sp.rotate || 0)}
+    <div class="prm"><label for="spPat">Events</label><select id="spPat" class="selrow">${o(SPACE_PATS, sp.pattern || 'fixed')}</select></div>
+    ${sp.pattern === 'walk' ? rng('spStep', 'Walk step', Math.round((sp.step == null ? 0.3 : sp.step) * 100) + '%', 1, 100, 1, Math.round((sp.step == null ? 0.3 : sp.step) * 100)) : ''}
+    <div class="selrow" style="margin:6px 0"><button class="btn" id="spSeed">New space seed</button></div>` : ''}
+    <p class="note">In the lane: <b>Pan</b> moves the centre, <b>Spread</b> the width.</p></section>`;
+}
+function wireSpace(u) {
+  const law = document.getElementById('spLaw'); if (!law || !u) return;
+  law.addEventListener('change', () => {
+    pushUndo();
+    if (!law.value) delete u.space;
+    else { u.space = u.space || { spread: 1, rotate: 0, pattern: 'fixed', step: 0.3, seed: newSeed() }; u.space.law = law.value; }
+    changed(true); status(u.space ? `Spatialisation: ${SPACE_LAWS.find(x => x[0] === u.space.law)[1]}. Every voice has its own place.` : 'Spatialisation off.');
+  });
+  const pat = document.getElementById('spPat');
+  if (pat) pat.addEventListener('change', () => { pushUndo(); u.space.pattern = pat.value; changed(true); });
+  const sd = document.getElementById('spSeed');
+  if (sd) sd.addEventListener('click', () => { pushUndo(); u.space.seed = newSeed(); changed(true); status('New space seed: a new scatter with the same law.'); });
+  for (const [id, set, fmt] of [
+    ['spSpr', v => { u.space.spread = v / 100; }, v => Math.round(v) + '%'],
+    ['spRot', v => { u.space.rotate = Math.abs(v) < 0.05 ? 0 : Math.round(v * 100) / 100; }, v => Math.abs(v) < 0.05 ? 'none' : (v > 0 ? '+' : '') + v.toFixed(2) + ' turns'],
+    ['spStep', v => { u.space.step = v / 100; }, v => Math.round(v) + '%']]) {
+    const r = document.getElementById(id); if (!r) continue;
+    let armed = true;
+    r.addEventListener('pointerdown', () => { armed = true; });
+    r.addEventListener('input', () => { if (armed) { pushUndo(); armed = false; } set(+r.value); document.getElementById(id + 'o').textContent = fmt(+r.value); dirty = true; requestDraw(); clearTimeout(saveTimer); saveTimer = setTimeout(saveLocal, 400); });
+    r.addEventListener('change', () => { armed = true; changed(false); });
+  }
 }
 function renderInspector() {
   { const ub = document.getElementById('playUnit'); if (ub) ub.disabled = !state.strokes.some(x => x.id === state.selected); }
@@ -4055,7 +4096,7 @@ function renderInspector() {
        <p class="note">${unitNoteList(sel).filter(x => !x.on).length ? unitNoteList(sel).filter(x => !x.on).length + ' off · ' : ''}⌥-click a note on the score does the same.</p>` : ''}${sel && sel.chord ? `<h2>Chord notes</h2>
        <div class="prm"><input id="chdNotes" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" value="${sel.notes_hz.map(chordLabel).join(' ')}" style="width:100%;box-sizing:border-box;font:14px var(--font-data);padding:7px 8px;border:1px solid var(--line);border-radius:8px;background:#fffdf8" title="Type notes: C3 E3 G3+14 Bb3 · MIDI numbers (60 64.5) · or Hz (440hz). Enter applies."></div>
        <p class="note">Type notes (C3 E♭3 G3+14, MIDI 60.5, or 440hz) and press Enter · or ${state.chordEdit === sel.id ? 'tap in the chord’s column to add or remove notes; drag a note to move it (⌥ = cents)' : 'Edit notes, then tap pitches in its column'}.</p>
-       <div class="selrow" style="margin:6px 0 12px"><button class="btn ${state.chordEdit === sel.id ? 'primary' : ''}" id="chdEdit">${state.chordEdit === sel.id ? 'Done (Enter)' : 'Edit notes (Enter)'}</button><button class="btn" id="chdRound">Round to semitones</button><button class="btn" id="chdPlay">▶ Hear</button></div>` : ''}${kind === 'block' ? `<div class="prm"><label for="blkEntry">Entry</label><select id="blkEntry" class="selrow">${ENTRIES.map(([k, l]) => `<option value="${k}" ${k === (target.entry || 'chord') ? 'selected' : ''}>${l}</option>`).join('')}</select></div>${sel ? `<p class="note">${sel.notes_hz.length} notes · ${mmss(sel.t_s)}–${mmss(sel.t_s + sel.dur_s)}</p>` : ''}` : ''}${sliders}</section></div><div class="stab-score">
+       <div class="selrow" style="margin:6px 0 12px"><button class="btn ${state.chordEdit === sel.id ? 'primary' : ''}" id="chdEdit">${state.chordEdit === sel.id ? 'Done (Enter)' : 'Edit notes (Enter)'}</button><button class="btn" id="chdRound">Round to semitones</button><button class="btn" id="chdPlay">▶ Hear</button></div>` : ''}${kind === 'block' ? `<div class="prm"><label for="blkEntry">Entry</label><select id="blkEntry" class="selrow">${ENTRIES.map(([k, l]) => `<option value="${k}" ${k === (target.entry || 'chord') ? 'selected' : ''}>${l}</option>`).join('')}</select></div>${sel ? `<p class="note">${sel.notes_hz.length} notes · ${mmss(sel.t_s)}–${mmss(sel.t_s + sel.dur_s)}</p>` : ''}` : ''}${sliders}</section>${sel ? spaceBox(sel) : ''}</div><div class="stab-score">
     <section><h2>Layers · engines</h2><div class="layers">${layerRows}</div></section>
     <section><h2>Field</h2>
       <p class="note"><b>${fieldDescription()}</b><br>${fieldFreqs().length} lines between 55 Hz and 7 kHz. ${state.snap ? 'Bands light the field lines they cover.' : 'Snap is off: bands are free regions.'}</p></section>
@@ -4082,6 +4123,7 @@ function renderInspector() {
       </div></section>
     <section><h2>This sketch</h2>
       <p class="note">${nBands} band${nBands === 1 ? '' : 's'}, ${nSpl} impulse${nSpl === 1 ? '' : 's'}, ${nBlk} block${nBlk === 1 ? '' : 's'}, ${nPul} pulse${nPul === 1 ? '' : 's'}, ${nLin} line${nLin === 1 ? '' : 's'}, ${nCld} cloud${nCld === 1 ? '' : 's'}, ${mmss(state.length)}. Tap or drag the time ruler under the canvas to choose where Play starts. Select a unit to shape its loudness envelope in the lane under the canvas. Kept on this iPad as you work. <b>Save sketch</b> makes a .json file for the Mac; the playback here is a sine or organ preview only.</p></section></div>`;
+  wireSpace(sel);
   insp.querySelectorAll('[data-layer]').forEach(el => {
     const pick = () => { state.layer = el.dataset.layer; syncVisible(); dirty = true; renderInspector(); requestDraw(); };
     el.addEventListener('click', ev => { if (!ev.target.closest('[data-eye], [data-mute], [data-solo], [data-ldel], input, select, label')) pick(); });
@@ -5018,14 +5060,7 @@ const unitVoices0 = (s, key) => s.kind === 'band' ? bandVoices(s, key) : s.kind 
   : s.kind === 'line' ? lineVoices(s) : s.kind === 'cloud' ? cloudVoices(s) : splashVoices(s, key);
 function unitVoices(s, key) {
   const v = unitVoices0(s, key);
-  if (s.pan_env && s.pan_env.length > 1) {
-    const [s0, s1] = unitSpan(s), sl = Math.max(s1 - s0, 0.001);
-    for (const x of v) {
-      const n = x.amp.length, dt = x.dur / Math.max(n - 1, 1), pc = new Float32Array(n);
-      for (let k = 0; k < n; k++) pc[k] = envAt(s.pan_env, (x.t0 + k * dt - s0) / sl) * 2 - 1;
-      x.pan = pc;
-    }
-  }
+  if (spaceOn(s) && v.length) applySpace(s, v);   // v65 Spatialisation
   const pr = presetFor(s.layer);
   if (pr) {
     const lanes = activeMods(s, pr);
@@ -5078,13 +5113,13 @@ function schedule(voices, startAt, bus) {
         const pd = src.pdrift ? wander(nC, dtC, src.pdrift.p, src.pdrift.r, true) : null;
         const cl = new Float32Array(nC), cr = new Float32Array(nC);
         for (let k = 0; k < nC; k++) {
-          const base = pcv ? clamp(pcv[Math.min(pcv.length - 1, Math.round(k / (nC - 1) * (pcv.length - 1)))] + src.pan * 0.3, -1, 1) : src.pan;
+          const base = pcv ? clamp(pcv[Math.min(pcv.length - 1, Math.round(k / (nC - 1) * (pcv.length - 1)))] + (v.spat ? 0 : src.pan * 0.3), -1, 1) : src.pan;
           const q = clamp(0.5 + base / 2 + (pd ? pd[k] : 0), 0, 1); cl[k] = Math.sqrt(1 - q); cr[k] = Math.sqrt(q);
         }
         pn.lr[0].setValueCurveAtTime(cl, safeT, dur); pn.lr[1].setValueCurveAtTime(cr, safeT, dur);
       }
       if (pcv && pn.pan) {        // the unit's pan envelope, with a little of the usual voice spread
-        const spread = ((i % 5) - 2) * 0.06, pc = new Float32Array(pcv.length + 2);
+        const spread = v.spat ? 0 : ((i % 5) - 2) * 0.06, pc = new Float32Array(pcv.length + 2);
         for (let k = 0; k < pcv.length; k++) pc[k + 1] = clamp(pcv[k] + spread, -1, 1);
         pc[0] = pc[1]; pc[pc.length - 1] = pc[pc.length - 2];
         pn.pan.setValueAtTime(pc[0], ac.currentTime); pn.pan.setValueCurveAtTime(pc, safeT, dur);
@@ -5524,6 +5559,67 @@ const selUnit = () => state.strokes.find(s => s.id === state.selected) || null;
 const PAN_FLAT = [[0, 0.5, 'lin', 0.5], [1, 0.5, 'lin', 0.5]];
 state.laneMode = 'vol';
 const panMode = () => state.laneMode === 'pan';
+// ---- v65 Spatialisation: every voice of a unit (one partial of a Block, one grain of a Cloud, one pulse)
+// gets its own place and path. Shared line for line with the Mac (Model.space_home / space_fns), which
+// writes it as a 14-bit azimuth (CC10/42) on each voice's own MIDI channel.
+//   s.space = {law, spread 0..1, rotate (turns across the unit), pattern, step, seed}
+//   s.pan_env = the centre, s.spread_env = the law's width over the unit
+const spreadMode = () => state.laneMode === 'spread';
+const SPACE_LAWS = [['centre', 'Centre'], ['pitch', 'By pitch (low left)'], ['pitch_rev', 'By pitch (low right)'], ['fan', 'Spectral fan'], ['oddeven', 'Odd / even'], ['zones', 'Register zones'], ['golden', 'Golden scatter'], ['entry', 'Entry order'], ['random', 'Seeded random']];
+const SPACE_PATS = [['fixed', 'Fixed'], ['pingpong', 'Ping-pong'], ['sweep', 'Sweep'], ['walk', 'Walk'], ['random', 'Random'], ['cycle', 'Cycle L C R C']];
+const M31 = 2147483647;
+function spaceHash(seed, i) { let v = (Math.floor(seed || 1) % M31 + i * 7919 + 1) % M31; for (let r = 0; r < 3; r++) v = v * 16807 % M31; return v / M31; }
+const fanPos = (k, n) => (k === 0 || n < 2) ? 0 : (k % 2 === 1 ? -1 : 1) * Math.ceil(k / 2) / Math.ceil((n - 1) / 2);
+// home position -1..1 for each voice {f0, t0}
+function spaceHome(sp, vs) {
+  const law = sp.law || 'centre', pat = sp.pattern || 'fixed', seed = sp.seed || 1, step = sp.step == null ? 0.3 : sp.step;
+  const pkey = v => Math.floor(ftom(v.f0) * 100 + 0.5), okey = v => Math.floor(v.t0 * 1000 + 0.5);
+  const pl = [...new Set(vs.map(pkey))].sort((a, b) => a - b), ol = [...new Set(vs.map(okey))].sort((a, b) => a - b);
+  const pr = new Map(pl.map((k, i) => [k, i])), orr = new Map(ol.map((k, i) => [k, i])), N = pl.length, M = ol.length;
+  const idx = vs.map((_, i) => i).sort((a, b) => vs[a].t0 !== vs[b].t0 ? vs[a].t0 - vs[b].t0 : vs[a].f0 !== vs[b].f0 ? vs[a].f0 - vs[b].f0 : a - b);
+  const er = []; idx.forEach((i, r) => { er[i] = r; });
+  const walk = [0];
+  for (let j = 1; j < M; j++) { let p = walk[j - 1] + (spaceHash(seed, 1000 + j) * 2 - 1) * step; if (p > 1) p = 2 - p; else if (p < -1) p = -2 - p; walk[j] = p; }
+  const cyc = [-1, 0, 1, 0];
+  return vs.map((v, i) => {
+    const k = pr.get(pkey(v)), j = orr.get(okey(v));
+    let L;
+    if (law === 'pitch') L = N > 1 ? -1 + 2 * k / (N - 1) : 0;
+    else if (law === 'pitch_rev') L = N > 1 ? 1 - 2 * k / (N - 1) : 0;
+    else if (law === 'fan') L = fanPos(k, N);
+    else if (law === 'oddeven') L = k % 2 === 0 ? -1 : 1;
+    else if (law === 'zones') L = Math.floor(3 * k / N) - 1;
+    else if (law === 'golden') { const x = (k + 1) * 0.6180339887; L = (x - Math.floor(x)) * 2 - 1; }
+    else if (law === 'entry') L = fanPos(er[i], vs.length);
+    else if (law === 'random') L = spaceHash(seed, k) * 2 - 1;
+    else L = 0;
+    let P = null;
+    if (pat === 'pingpong') P = j % 2 === 0 ? -1 : 1;
+    else if (pat === 'sweep') P = M > 1 ? -1 + 2 * j / (M - 1) : 0;
+    else if (pat === 'walk') P = walk[j];
+    else if (pat === 'random') P = spaceHash(seed, 2000 + j) * 2 - 1;
+    else if (pat === 'cycle') P = cyc[j % 4];
+    return P == null ? L : law === 'centre' ? P : clamp(0.7 * P + 0.3 * L, -1, 1);
+  });
+}
+const spaceOn = s => !!(s && (s.space || (s.pan_env && s.pan_env.length > 1)));
+const spreadFlatOf = s => { const q = clamp(s && s.space && s.space.spread != null ? s.space.spread : 1, 0, 1); return [[0, q, 'lin', 0.5], [1, q, 'lin', 0.5]]; };
+// each voice's pan -1..1 at every amplitude step (sin of its azimuth, as the LH synths' stereo law)
+function applySpace(s, v) {
+  const [s0, s1] = unitSpan(s), sl = Math.max(s1 - s0, 0.001), sp = s.space || {};
+  const home = spaceHome(sp, v.map(x => ({ f0: x.f, t0: x.t0 })));
+  const pe = s.pan_env && s.pan_env.length > 1 ? s.pan_env : null, se = s.spread_env && s.spread_env.length > 1 ? s.spread_env : null;
+  const spr = sp.spread == null ? 1 : sp.spread, rot = sp.rotate || 0;
+  v.forEach((x, i) => {
+    const n = x.amp.length, dt = x.dur / Math.max(n - 1, 1), pc = new Float32Array(n), h = home[i];
+    for (let k = 0; k < n; k++) {
+      const u = clamp((x.t0 + k * dt - s0) / sl, 0, 1);
+      const c = pe ? (clamp(envAt(pe, u), 0, 1) * 2 - 1) * 90 : 0, w = se ? clamp(envAt(se, u), 0, 1) : spr;
+      pc[k] = Math.sin((c + w * h * 90 + 360 * rot * u) * Math.PI / 180);
+    }
+    x.pan = pc; x.spat = true;
+  });
+}
 // ---- v63: modulation envelopes, up to 3 per unit; each one moves one control of the layer's sound across the unit
 const MOD_MAX = 3;
 const MOD_KEYS = {
@@ -5563,7 +5659,7 @@ function activeMods(s, pr) {
   if (!s.mods || !pr) return [];
   return s.mods.map(m => ({ k: m.k, d: modDef(pr.engine, m.k), pts: m.pts })).filter(m => m.d && Array.isArray(m.pts) && m.pts.length > 1);
 }
-const rawValEnv = s => { if (panMode()) return rawPanEnv(s); const m = modLane(s); return m ? m.pts : PAN_FLAT; };
+const rawValEnv = s => { if (panMode()) return rawPanEnv(s); if (spreadMode()) return (s && s.spread_env && s.spread_env.length > 1) ? s.spread_env : spreadFlatOf(s); const m = modLane(s); return m ? m.pts : PAN_FLAT; };
 const rawPanEnv = s => (s.pan_env && s.pan_env.length > 1) ? s.pan_env : PAN_FLAT;
 function targetEnv(s) { if (valMode()) return rawValEnv(s); return state.envTarget === 'unit' ? rawUnitEnv(s) : rawNoteEnv(s, state.envTarget); }
 function heardEnv(s) { if (valMode()) return rawValEnv(s); return state.envTarget === 'unit' ? unitEnv(s) : noteEnv(s, state.envTarget); }
@@ -5572,7 +5668,8 @@ function setLaneMode(m) {
   if (m !== 'vol') state.envTarget = 'unit';
   renderLaneHeader();
   const s = selUnit(), ml = modLane(s), pr = s && layerSoundOf(s), d = ml && pr && modDef(pr.engine, ml.k);
-  status(m === 'pan' ? 'Pan envelope: top is right, the middle line is centre, the bottom is left. Draw and edit it like the loudness envelope.'
+  status(m === 'pan' ? 'Pan: the centre of the unit\'s voices. Top is right, the middle line is centre, the bottom is left. Each voice keeps its own place around it (Settings › Spatialisation).'
+    : m === 'spread' ? 'Spread: how far the Spatialisation law spreads the voices. Top = the full law, bottom = all at the centre. Set a law in Settings › Spatialisation.'
     : ml ? (d ? `${d.l}: the top of the lane is ${modFmt(d, d.max)}${modUnit(d) ? ' ' + modUnit(d) : ''}, the bottom ${modFmt(d, d.min)}${d.log ? ' (log scale)' : ''}. The envelope sets the control across the unit, in place of the preset value.`
       : `This layer's sound has no ${ml.l || ml.k}. The envelope is kept and plays again if you switch back.`)
     : 'Loudness envelope.');
@@ -5582,6 +5679,7 @@ function paintLaneMode() {
   $('fader').style.visibility = m === 'vol' ? '' : 'hidden';      // the record fader is loudness only
   $('laneVol').classList.toggle('on', m === 'vol'); $('laneVol').setAttribute('aria-pressed', m === 'vol');
   $('lanePan').classList.toggle('on', m === 'pan'); $('lanePan').setAttribute('aria-pressed', m === 'pan');
+  $('laneSpread').classList.toggle('on', m === 'spread'); $('laneSpread').setAttribute('aria-pressed', m === 'spread');
 }
 function renderModRow() {
   const s = selUnit(), pr = s ? layerSoundOf(s) : null, defs = pr ? modDefsFor(pr.engine) : [];
@@ -5631,6 +5729,7 @@ $('modDel').addEventListener('click', () => {
 });
 function setTargetEnv(s, pts) {
   if (panMode()) { s.pan_env = pts; return; }
+  if (spreadMode()) { s.spread_env = pts; return; }
   if (modIdx() >= 0) { const m = modLane(s); if (m) m.pts = pts; return; }
   if (state.envTarget === 'unit') s.env = pts;
   else { s.note_env = s.note_env || {}; s.note_env[state.envTarget] = pts; }
@@ -5752,7 +5851,7 @@ function renderShapes() {
       pushUndo();
       // v64: Flat on the Pan lane is centre, on a modulation lane the preset's value (the top there is right / the maximum)
       const ml2 = modLane(s2), flatHere = +b.dataset.shape === 0 && valMode();
-      setTargetEnv(s2, flatHere && panMode() ? PAN_FLAT.map(p => p.slice()) : flatHere && ml2 ? modFlat(s2, ml2.k) : sh.pts.map(p => p.slice()));
+      setTargetEnv(s2, flatHere && panMode() ? PAN_FLAT.map(p => p.slice()) : flatHere && spreadMode() ? spreadFlatOf(s2) : flatHere && ml2 ? modFlat(s2, ml2.k) : sh.pts.map(p => p.slice()));
       // saved shapes bring their LFO (or clear it); built-ins leave the LFO alone
       if (+b.dataset.shape >= SHAPES.length && !valMode()) { if (sh.lfo) s2.lfo = JSON.parse(JSON.stringify(sh.lfo)); else delete s2.lfo; }
       changed(false); renderLaneHeader();
@@ -5769,6 +5868,7 @@ document.getElementById('resetEnv').addEventListener('click', () => {
   const s = selUnit(); if (!s) return;
   pushUndo();
   if (panMode()) { delete s.pan_env; changed(false); renderLaneHeader(); status('Pan reset to centre.'); return; }
+  if (spreadMode()) { delete s.spread_env; changed(false); renderLaneHeader(); status('Spread lane removed: the Spread setting applies again.'); return; }
   if (modIdx() >= 0) { const m = modLane(s); if (m) m.pts = modFlat(s, m.k); changed(false); renderLaneHeader(); status('Flat again, at the preset value.'); return; }
   if (state.envTarget === 'unit') { delete s.env; delete s.lfo; delete s.env_mod; } else if (s.note_env) delete s.note_env[state.envTarget];
   changed(false); renderLaneHeader();
@@ -6065,6 +6165,12 @@ function drawLane() {
       if (i % 2 === 0) { c.fillStyle = '#6b3f73'; c.textAlign = 'right'; c.fillText(mlD ? modFmt(mlD, modDenorm(mlD, v)) : '', x0 - 6, y); }
     }
     if (s && !mlD) { c.fillStyle = '#8a7f72'; c.textAlign = 'center'; c.font = '12px "Public Sans", system-ui, sans-serif'; c.fillText("This layer's sound doesn't have this control. The envelope is kept.", (x0 + x1) / 2, LM.t + 14); c.font = '10px "IBM Plex Mono", ui-monospace, monospace'; }
+  } else if (spreadMode()) {       // v65 spread grid: the full law at the top, all at the centre at the bottom
+    for (let i = 0; i <= 4; i++) {
+      const v = 1 - i / 4, y = Math.round(VY(v));
+      c.fillStyle = i === 0 || i === 4 ? 'rgba(46,38,31,0.12)' : 'rgba(46,38,31,0.06)'; c.fillRect(x0, y, x1 - x0, 1);
+      c.fillStyle = '#8a7f72'; c.textAlign = 'right'; c.fillText(Math.round(v * 100) + '%', x0 - 6, y);
+    }
   } else if (panMode()) {          // pan grid: R at the top, centre in the middle, L at the bottom
     const labs = ['R', 'R 50', 'C', 'L 50', 'L'];
     for (let i = 0; i <= 4; i++) {
@@ -6212,6 +6318,7 @@ function lfoTouch(key) {            // one undo step per slider drag
 function lfoDone() { lfoUndoKey = null; changed(false); }
 $('laneVol').addEventListener('click', () => setLaneMode('vol'));
 $('lanePan').addEventListener('click', () => setLaneMode('pan'));
+$('laneSpread').addEventListener('click', () => setLaneMode('spread'));
 $('lfoShape').innerHTML = LFO_SHAPES.map(([k, l]) => `<option value="${k}">${l}</option>`).join('');
 $('lfoPreset').innerHTML = '<option value="">Presets…</option>' + LFO_PRESETS.map((p, i) => `<option value="${i}">${p.name}</option>`).join('');
 $('lfoBtn').addEventListener('click', () => {
@@ -6776,7 +6883,7 @@ resize();
 </script>
 
 <script>
-/* Standalone build v64-20261107-1930-4d11c3: keep the app on the iPad so it opens with no internet. */
+/* Standalone build v65-20261108-0844-e9eb58: keep the app on the iPad so it opens with no internet. */
 if ('serviceWorker' in navigator) window.addEventListener('load', () => {
   // an update downloads in the background; when it takes over, say so and offer a reload (the open sketch is kept on the iPad)
   const had = !!navigator.serviceWorker.controller;
