@@ -153,6 +153,8 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
 .lane-head::-webkit-scrollbar, .curve-row::-webkit-scrollbar { display: none; }
 .lane-head > *, .curve-row > * { flex: none; }
 .left .stage { min-height: 190px; }
+.chip.mod.on { background: rgba(107,63,115,.16); border-color: #6b3f73; color: #4a2a50; }
+.chip.mod.off { opacity: .55; text-decoration: line-through; }
 .fader { width: 64px; flex: none; border-left: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 0 6px; touch-action: none; user-select: none; -webkit-user-select: none; }
 .fader .track { position: relative; flex: 1; width: 30px; border-radius: 8px; background: var(--panel); border: 1px solid var(--line); cursor: ns-resize; }
 .fader .fill { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 0 0 7px 7px; background: rgba(38,98,104,.22); }
@@ -372,6 +374,14 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
           <button class="chip lfo" id="lfoBtn" title="Tremolo / LFO on this unit">LFO</button>
           <button class="chip lfo" id="secBtn" title="Drag across the lane to choose a section for the LFO (or ⇧-drag)">Section</button>
         </div>
+        <div class="lane-head mod-row" id="modRow">
+          <span class="lh">Modulation</span>
+          <span class="segbtns" id="modChips" role="group" aria-label="Modulation envelopes"></span>
+          <select id="modParam" aria-label="Control this envelope modulates" hidden></select>
+          <button class="chip" id="modDel" title="Remove this modulation envelope" hidden>Remove</button>
+          <button class="chip" id="modAdd" title="Add an envelope that moves one control of this layer's sound across the unit (up to 3 per unit)">+ Add envelope</button>
+          <span class="segnote" id="modNote"></span>
+        </div>
         <div class="lfo-row" id="lfoRow" hidden>
           <span class="lh">LFO</span>
           <select id="lfoShape" aria-label="LFO shape"></select>
@@ -470,7 +480,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
     <label>Name <input id="mrName" type="text" autocomplete="off" style="width: 14em" aria-label="Name"></label>
     <span class="selrow"><button class="btn primary" id="mrOk">Done</button><button class="btn warn" id="mrDel">Delete</button><button class="btn" id="mrCancel">Cancel</button></span></div>
   <div class="askbar" id="askBar" hidden><span id="askText"></span><span class="selrow" id="askBtns"></span></div>
-  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v62</span></div>
+  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v63</span></div>
 </div>
 
 <div class="laypop" id="layerDots" role="menu" aria-label="Layer to draw on" hidden></div>
@@ -2435,6 +2445,7 @@ function envSlice(pts, k0, k1) {
 function splitEnvs(u, o, k0, k1) {
   if (o.env) u.env = envSlice(o.env, k0, k1);
   if (o.pan_env) u.pan_env = envSlice(o.pan_env, k0, k1);
+  if (o.mods) u.mods = o.mods.map(m => Object.assign({}, m, { pts: envSlice(m.pts, k0, k1) }));
   if (o.note_env) { u.note_env = {}; for (const key of Object.keys(o.note_env)) u.note_env[key] = envSlice(o.note_env[key], k0, k1); }
 }
 function splitUnit(u, t) {
@@ -3333,6 +3344,7 @@ function toJSON() {
     layers: LAYERS.map(l => Object.assign({}, l, { visible: (state.view[l.id] || 'full') !== 'hidden', view: state.view[l.id] || 'full', mute: !!state.mute[l.id], solo: !!state.solo[l.id], planned: !!l.planned })),
     point_format: ['time_s', 'freq_hz', 'pressure_0_1', 'tilt_0_1'],
     envelope_format: 'env and note_env points are [position 0-1 across the unit, loudness 0-1, curve, tension 0-1]; curve shapes the segment to the next point. They stretch with the unit. note_env is keyed by partial Hz and overrides env for that note. Loudness is on a 60 dB scale (1 = 0 dB, 0.5 = −30 dB, 0 = −60 dB/off) and maps to CC11/43.',
+    mod_format: 'mods (optional, per unit, up to 3) = [{ k: control key, s: plug-in slider number, e: engine, l: label, pts }]; pts are [position 0-1 across the unit, value 0-1 across the control range (log controls on a log scale), curve, tension] and give the control its value over time (they replace the preset value). Intended for per-channel 14-bit CC pairs on the Mac (slot 1 CC 16/48, slot 2 CC 17/49, slot 3 CC 18/50; slot target = slider number on CC 102/103/104).',
     pan_format: 'pan_env (optional, per unit) points are [position 0-1 across the unit, pan 0-1 (0 = left, 0.5 = centre, 1 = right), curve, tension]; same curves as env. Absent = centre. Intended for per-channel CC10 on the Mac.',
     envelope_curves: { lin: 'linear (REAPER CC shape 1)', exp: 'slow start, fast end (REAPER CC shape 4, fast end; tension sets steepness)', log: 'fast start, slow end (REAPER CC shape 3, fast start)', s: 'slow start and end (REAPER CC shape 2)', smooth: 'monotone spline through the points (REAPER CC shape 5, bezier, or dense CCs)', hold: 'step (REAPER CC shape 0, square)' },
     shape_library: userShapes,
@@ -3427,6 +3439,20 @@ window.__lh = { LAYERS, pulseShape: (P, x, l) => pulseShape(P, x, l), pulseShape
       const seg = (a, b) => { let ss = 0, pk = 0, lr = 0, ll = 0, rr = 0; for (let k = Math.floor(a * sr); k < Math.floor(b * sr); k++) { ss += L[k] * L[k] + R[k] * R[k]; pk = Math.max(pk, Math.abs(L[k]), Math.abs(R[k])); lr += L[k] * R[k]; ll += L[k] * L[k]; rr += R[k] * R[k]; } const n = Math.max(1, (Math.floor(b * sr) - Math.floor(a * sr)) * 2); return { rms: +Math.sqrt(ss / n).toFixed(4), peak: +pk.toFixed(3), corr: +(lr / Math.sqrt(ll * rr || 1)).toFixed(2) }; };
       return { preset: pr && pr.name, strike: seg(0.05, 0.35), held: seg(0.5, secs), tail1s: seg(secs + 0.5, secs + 1.5), tail4s: seg(secs + 3.5, secs + 4.5) };
     } finally { ac = keep; state.wave = keepWave; noiseBuf = null; }
+  },
+  unitVoices: u => unitVoices(u),
+  modTest: async (pr, lanes, f, secs) => {
+    ensureAudio(); const keep = ac, sr = 44100; secs = secs || 2;
+    ac = new OfflineAudioContext(2, sr * (secs + 1), sr);
+    try {
+      const n = Math.round(secs * 100), x = { t0: 0, dur: secs, f, amp: new Float32Array(n).fill(0.5), energy: 1, preset: pr };
+      x.mods = lanes.map(l => { const d = modDef(pr.engine, l.k), c = new Float32Array(n); for (let k = 0; k < n; k++) c[k] = l.from + (l.to - l.from) * k / (n - 1); return { k: l.k, c, ok: !!d }; });
+      schedule([x], 0.05, ac.destination);
+      const buf = await ac.startRendering(), L = buf.getChannelData(0);
+      const out = [];
+      for (let w = 0; w < 4; w++) { const a = Math.floor((0.1 + w * (secs - 0.2) / 4) * sr), b = Math.floor((0.1 + (w + 1) * (secs - 0.2) / 4) * sr); let ss = 0, zc = 0; for (let k = a; k < b; k++) { ss += L[k] * L[k]; if (k > a && (L[k] >= 0) !== (L[k - 1] >= 0)) zc++; } out.push({ rms: +Math.sqrt(ss / (b - a)).toFixed(4), zcr: Math.round(zc / ((b - a) / sr)) }); }
+      return out;
+    } finally { ac = keep; noiseBuf = null; }
   } };
 // ---- saved-to-file tracking: compares the sketch with what was last saved (or opened) as a file
 const SAVED_KEY = 'lh-spectral-palette-savedfp-v1';
@@ -4416,12 +4442,19 @@ function breathEnvelope(x, P0) {
   const last = x.amp[n - 1];
   for (let k = 0; k < relN; k++) { lv = Math.max(0, lv - rel); amp[n + k] = last * g(lv); }
   const ext = (arr) => { if (!arr) return arr; const o = new Float32Array(n + relN); o.set(arr); o.fill(arr[n - 1], n); return o; };
-  x.amp = amp; x.fcurve = ext(x.fcurve); x.pan = ext(x.pan); x.dur = x.dur + relN * dt;
+  x.amp = amp; x.fcurve = ext(x.fcurve); x.pan = ext(x.pan); if (x.mods) for (const m of x.mods) m.c = ext(m.c); x.dur = x.dur + relN * dt;
 }
 // one voice's source: { out (stereo), starts, fp: [[AudioParam, multiple of the pitch]], pan (optional placement) }
 let altSide = 1;
-function buildSource(v, f0, i) {
+// v63: one control curve onto an AudioParam, n values across dur (held at both ends, as the amplitude curve)
+function ctlMod(P, k) { return !!(P.__mod && P.__mod.has(k)); }
+function modCurve(prm, n, fn, t0, dur) {
+  const c = new Float32Array(n + 2); for (let j = 0; j < n; j++) c[j + 1] = fn(j); c[0] = c[1]; c[n + 1] = c[n];
+  try { prm.cancelScheduledValues(0); prm.value = c[0]; prm.setValueCurveAtTime(c, t0, dur); } catch (e) { }
+}
+function buildSource(v, f0, i, mods) {
   const P = v.preset ? fullParams(v.preset) : null;
+  if (P) { P.__mod = new Set(); if (mods) for (const m of mods) { P.__mod.add(m.k); P[m.k] = m.c[0]; } }
   if (!P) { const o = makeOsc(f0); return { out: o, starts: [o], fp: [[o.frequency, 1]] }; }
   if (v.preset.engine !== 'LH_Breath' && ENGINES[v.preset.engine]) return ENGINES[v.preset.engine].source(P, f0, i);
   const sr = ac.sampleRate, tune = Math.pow(2, (P.tune_cents || 0) / 1200), f = Math.min(f0 * tune, sr * 0.45);
@@ -4429,12 +4462,12 @@ function buildSource(v, f0, i) {
   const steep = P.band_shape === 'steep', bws = steep ? bw / Math.sqrt(Math.sqrt(2) - 1) : bw;   // STEEP_W keeps the -3 dB width
   // unit RMS as the plug-in; −12 dB output (the preset's) sits at sine level, so layers balance with the sine preview
   const nrm = Math.sqrt((steep ? 6 : 3) * sr / (Math.PI * bws)) / Math.SQRT2 * Math.pow(10, (P.output_gain_db + 12) / 20);
-  const starts = [], fp = [], detune = [];
+  const starts = [], fp = [], detune = [], qs = [];
   const bandOf = () => {
     const b = ac.createBufferSource(); b.buffer = getNoise(); b.loop = true; b._off = Math.random() * 3.9; starts.push(b);
     let last = b;
     for (let st = 0; st < (steep ? 2 : 1); st++) {
-      const fl = ac.createBiquadFilter(); fl.type = 'bandpass'; fl.frequency.value = f; fl.Q.value = f / bws; fp.push([fl.frequency, tune]); detune.push(fl.detune);
+      const fl = ac.createBiquadFilter(); fl.type = 'bandpass'; fl.frequency.value = f; fl.Q.value = f / bws; fp.push([fl.frequency, tune]); detune.push(fl.detune); qs.push(fl.Q);
       last.connect(fl); last = fl;
     }
     return last;
@@ -4443,17 +4476,31 @@ function buildSource(v, f0, i) {
   const y = bandOf(), mg = ac.createGain(); mg.gain.value = nrm * wm; y.connect(mg);
   const outL = ac.createGain(), outR = ac.createGain();
   mg.connect(outL); mg.connect(outR);
-  if (ws > 0.001) {
-    const yi = bandOf(), sp = ac.createGain(), sn = ac.createGain(); sp.gain.value = nrm * ws; sn.gain.value = -nrm * ws;
+  let sp = null, sn = null;
+  if (ws > 0.001 || ctlMod(P, 'note_width_pct')) {
+    const yi = bandOf(); sp = ac.createGain(); sn = ac.createGain(); sp.gain.value = nrm * ws; sn.gain.value = -nrm * ws;
     yi.connect(sp); yi.connect(sn); sp.connect(outL); sn.connect(outR);      // L = m + s, R = m − s
   }
+  // v63: bandwidth, floor, note width and output gain over time (the gain keeps unit RMS as the band narrows, as the plug-in)
+  const bmods = (mv, n, t0, dur) => {
+    const g = (k, j) => mv[k] ? mv[k][j] : P[k], B = new Float32Array(n), N = new Float32Array(n), W = new Float32Array(n);
+    for (let j = 0; j < n; j++) {
+      const b = Math.max(Math.max(f * g('bandwidth_pct', j) / 100, g('bandwidth_floor_hz', j)), 0.05);
+      B[j] = steep ? b / Math.sqrt(Math.sqrt(2) - 1) : b;
+      N[j] = Math.sqrt((steep ? 6 : 3) * sr / (Math.PI * B[j])) / Math.SQRT2 * Math.pow(10, (g('output_gain_db', j) + 12) / 20);
+      W[j] = clamp(g('note_width_pct', j), 0, 100) / 100 * Math.PI / 4;
+    }
+    if (mv.bandwidth_pct || mv.bandwidth_floor_hz) for (const q of qs) modCurve(q, n, j => f / B[j], t0, dur);
+    modCurve(mg.gain, n, j => N[j] * Math.cos(W[j]), t0, dur);
+    if (sp) { modCurve(sp.gain, n, j => N[j] * Math.sin(W[j]), t0, dur); modCurve(sn.gain, n, j => -N[j] * Math.sin(W[j]), t0, dur); }
+  };
   // Pan layout (the plug-in's): home position −0.5..0.5, scaled by Stereo Spread
   let home;
   if (P.pan_layout === 'by_pitch') home = clamp((12 * Math.log2(f0 / 440) + 69 - 66) / 48, -0.5, 0.5);
   else if (P.pan_layout === 'alternate') { altSide = -altSide; home = altSide * (0.2 + 0.3 * Math.random()); }
   else if (P.pan_layout === 'random') home = Math.random() - 0.5;
   else home = ((i * 0.618034) % 1) - 0.5;                   // even scatter: golden-ratio steps, notes never bunch
-  return { outL, outR, starts, fp, detune, pan: clamp(home * 2 * P.stereo_spread_pct / 100, -1, 1),
+  return { outL, outR, starts, fp, detune, mods: bmods, pan: clamp(home * 2 * P.stereo_spread_pct / 100, -1, 1),
            drift: P.pitch_drift_cents > 0 ? { c: P.pitch_drift_cents, r: P.drift_rate_hz } : null,
            pdrift: P.pan_drift_pct > 0 ? { p: P.pan_drift_pct / 100, r: P.drift_rate_hz } : null };
 }
@@ -4525,8 +4572,15 @@ const ENGINES = {
         starts.push(o); fp.push([o.frequency, ratio]); parts.push({ gn, a, k, seed: Math.random() * 2 * Math.PI });
       }
       return { outL, outR, starts, fp, detune: [], pan: 0,
-        at(t0, hold, total, el) {            // shimmer: each partial's level drifts slowly (0.1 + 0.03k rad/s)
-          if (!(P.shimmer > 0)) return;
+        mods(mv, n, t0, dur, el) {           // v63: harmonic decay (with the shimmer on top) and master amplitude over time
+          if (mv.master_amp) { const g0 = 0.8 / Math.max(1, Math.sqrt(N)) * ENG_K * Math.SQRT2;
+            modCurve(outL.gain, n, j => g0 * mv.master_amp[j] * (1 - p * 0.3), t0, dur);
+            modCurve(outR.gain, n, j => g0 * mv.master_amp[j] * (0.7 + p * 0.3), t0, dur); }
+          if (mv.harm_decay) { const dtj = dur / Math.max(n - 1, 1);
+            for (const q of parts) modCurve(q.gn.gain, n, j => Math.pow(mv.harm_decay[j], q.k) * (P.shimmer > 0 ? Math.max(0, 1 + P.shimmer * Math.sin(q.seed + (el + j * dtj) * (0.1 + q.k * 0.03))) : 1), t0, dur); }
+        },
+        at(t0, hold, total, el, mv) {        // shimmer: each partial's level drifts slowly (0.1 + 0.03k rad/s)
+          if (!(P.shimmer > 0) || (mv && mv.harm_decay)) return;
           const nC = Math.max(2, Math.min(800, Math.ceil(total * 4))), dtc = total / (nC - 1);
           for (const q of parts) {
             const c = new Float32Array(nC);
@@ -4550,21 +4604,31 @@ const ENGINES = {
       mod.connect(dev); dev.connect(idx); idx.connect(car.frequency);
       const out = ac.createGain(), gC = ac.createGain(); gC.gain.value = 1 - Math.abs(P.sub_mix); car.connect(gC); gC.connect(out);
       starts.push(car, mod);
-      if (P.sub_mix !== 0) { const sub = ac.createOscillator(), gS = ac.createGain(); sub.frequency.value = f0 * 0.5; fp.push([sub.frequency, 0.5]); gS.gain.value = P.sub_mix; sub.connect(gS); gS.connect(out); starts.push(sub); }
+      let gSref = null;
+      if (P.sub_mix !== 0 || ctlMod(P, 'sub_mix')) { const sub = ac.createOscillator(), gS = ac.createGain(); sub.frequency.value = f0 * 0.5; fp.push([sub.frequency, 0.5]); gS.gain.value = P.sub_mix; sub.connect(gS); gS.connect(out); starts.push(sub); gSref = gS; }
       let wob = null;
       if (P.ratio_drift > 0) { wob = ac.createConstantSource(); wob.offset.value = 0; const wg = ac.createGain(); wg.gain.value = f0; wob.connect(wg); wg.connect(mod.frequency); starts.push(wob); }
       const lvl = ac.createGain(); lvl.gain.value = P.master_amp * 0.8 * ENG_K; out.connect(lvl);
+      const gSub = gSref;
       const pan = clamp(0.5 + (midiOf(f0) - 60) * 0.012, 0.1, 0.9);
       return { outL: lvl, outR: lvl, starts, fp, detune: [], pan: (pan - 0.5) * 2,
-        at(t0, hold, total, el) {            // slow index drift and modulator-ratio wobble, as the plug-in (voice i sets the phase)
+        mods(mv, n, t0, dur, el) {           // v63: index (with its drift on top), sub mix and level over time
+          const dtj = dur / Math.max(n - 1, 1);
+          if (mv.fm_index) modCurve(idx.gain, n, j => { const t = el + j * dtj, mra = mr + P.ratio_drift * Math.sin(t * 0.2 + i * 1.7);
+            return Math.max(0, mv.fm_index[j] + P.index_drift * 0.01 * Math.sin(t * 0.15 + i * 2.3)) * (mra / mr); }, t0, dur);
+          if (mv.sub_mix) { modCurve(gC.gain, n, j => 1 - Math.abs(mv.sub_mix[j]), t0, dur); if (gSub) modCurve(gSub.gain, n, j => mv.sub_mix[j], t0, dur); }
+          if (mv.master_amp) modCurve(lvl.gain, n, j => mv.master_amp[j] * 0.8 * ENG_K, t0, dur);
+        },
+        at(t0, hold, total, el, mv) {        // slow index drift and modulator-ratio wobble, as the plug-in (voice i sets the phase)
           if (!(P.index_drift !== 0 || P.ratio_drift > 0)) return;
+          const own = mv && mv.fm_index;
           const nC = Math.max(2, Math.min(2000, Math.ceil(total * 20))), dtc = total / (nC - 1), ci = new Float32Array(nC), cw = new Float32Array(nC);
           for (let j = 0; j < nC; j++) {
             const t = el + j * dtc, mra = mr + P.ratio_drift * Math.sin(t * 0.2 + i * 1.7);
             ci[j] = Math.max(0, P.fm_index + P.index_drift * 0.01 * Math.sin(t * 0.15 + i * 2.3)) * (mra / mr);
             cw[j] = P.ratio_drift * Math.sin(t * 0.2 + i * 1.7);
           }
-          try { idx.gain.setValueCurveAtTime(ci, t0, total); if (wob) wob.offset.setValueCurveAtTime(cw, t0, total); } catch (e) { }
+          try { if (!own) idx.gain.setValueCurveAtTime(ci, t0, total); if (wob) wob.offset.setValueCurveAtTime(cw, t0, total); } catch (e) { }
         } };
     } },
   LH_Modal: {
@@ -4585,6 +4649,9 @@ const ENGINES = {
       }
       let t0s = 0;
       return { outL, outR, starts, fp, detune: [], pan: 0,
+        mods(mv, n, t0, dur) {               // v63: output gain over time (relative to the preset's, which is in the strike levels)
+          if (mv.output_gain_db) for (const o of [outL, outR]) modCurve(o.gain, n, j => Math.pow(10, (mv.output_gain_db[j] - P.output_gain_db) / 20), t0, dur);
+        },
         at(t0, hold, total, el) {            // the strike: every mode starts at its level and rings down (sine from zero phase)
           t0s = t0 - el;
           for (const q of live) {
@@ -4639,8 +4706,11 @@ function pipeSource(P, f0, i, organ) {
   const starts = [], fp = [], idxGains = [], dets = [];
   const cel = organ ? Math.pow(2, (P.celeste_cents || 0) / 1200) : 1;
   const mr = P.mod_ratio, halo = Math.pow(10, P.halo_db / 20), fb = clamp(P.feedback, 0, 0.99);
-  const ranks = organ ? [[0.5, P.stop16 / 100], [2, P.stop4 / 100], [3, P.stop3 / 100], [4, P.stop2 / 100], [5, P.stop1 / 100]].filter(r => r[1] > 0) : [];
-  const rkNorm = ranks.length ? 1 / Math.sqrt(1 + ranks.reduce((s, r) => s + r[1] * r[1], 0)) : 1;
+  const STOPK = ['stop16', 'stop4', 'stop3', 'stop2', 'stop1'], STOPM = [0.5, 2, 3, 4, 5];
+  const ranks = organ ? STOPK.map((k, j) => [STOPM[j], P[k] / 100, k]).filter(r => r[1] > 0 || ctlMod(P, r[2])) : [];
+  const rkNormOf = gs => 1 / Math.sqrt(1 + gs.reduce((s, g) => s + g * g, 0));
+  const rkNorm = ranks.length ? rkNormOf(ranks.map(r => r[1])) : 1;
+  const hgs = [], rgs = [];
   const nyq = ac.sampleRate * 0.45;
   const osc = (mult, type) => { const o = ac.createOscillator(); if (type) o.type = type; o.frequency.value = Math.min(f0 * mult, nyq); fp.push([o.frequency, mult]); starts.push(o); dets.push(o.detune); return o; };
   const side = (cm, mm, hm) => {             // one channel: carrier ratio, modulator ratio, halo modulator ratio
@@ -4649,22 +4719,25 @@ function pipeSource(P, f0, i, organ) {
     const dev = ac.createGain(); dev.gain.value = f0 * mm; fp.push([dev.gain, mm]);
     const ig = ac.createGain(); ig.gain.value = Math.max(0, P.fm_index); idxGains.push(ig);
     mod.connect(dev); dev.connect(ig); ig.connect(car.frequency); car.connect(sum);
-    if (halo > 0.0005) {
+    if (halo > 0.0005 || ctlMod(P, 'halo_db')) {
       const hc = osc(cm), hmod = osc(hm, 'sine'), hd = ac.createGain(), hg = ac.createGain();
       hd.gain.value = 1.2 * f0 * hm; fp.push([hd.gain, 1.2 * hm]); hmod.connect(hd); hd.connect(hc.frequency);
-      hg.gain.value = halo; hc.connect(hg); hg.connect(sum);
+      hg.gain.value = halo; hc.connect(hg); hg.connect(sum); hgs.push(hg);
     }
-    for (const [m, g] of ranks) { const o = osc(cm * m, 'sine'), gg = ac.createGain(); gg.gain.value = g; o.connect(gg); gg.connect(sum); }
+    for (const [m, g, k] of ranks) { const o = osc(cm * m, 'sine'), gg = ac.createGain(); gg.gain.value = g; o.connect(gg); gg.connect(sum); rgs.push([gg, k]); }
     return sum;
   };
   const sL = side(1, mr, 3.5), sR = (cel !== 1 || P.stereo_detune > 0) ? side(cel, mr + P.stereo_detune, 3.507) : null;
   // level: K_FM·√2 (organ only), pan √½, K_OUT, output gain; the iPad level is the plug-in's × 2√2 (ENG_K); 0.8 = a mid velocity
   const lvl = 0.12 * Math.SQRT2 * Math.SQRT1_2 * 0.355 * Math.pow(10, P.output_gain_db / 20) * rkNorm * ENG_K * 0.8;
   const trem = ac.createGain(); trem.gain.value = 1;
-  const lpL = onePoleLP(P.lowpass_hz), outL = ac.createGain(); outL.gain.value = lvl;
+  // v63: a modulated low-pass is a biquad (a one-pole can't be moved in Web Audio); otherwise the plug-in's one-pole
+  const lps = [], lpOf = hz => { if (!ctlMod(P, 'lowpass_hz')) return onePoleLP(hz); const b = ac.createBiquadFilter(); b.type = 'lowpass'; b.frequency.value = Math.min(hz, ac.sampleRate * 0.45); b.Q.value = -3.01; lps.push(b); return b; };
+  const lvlOf = (og, rn) => 0.12 * Math.SQRT2 * Math.SQRT1_2 * 0.355 * Math.pow(10, og / 20) * rn * ENG_K * 0.8;
+  const lpL = lpOf(P.lowpass_hz), outL = ac.createGain(); outL.gain.value = lvl;
   sL.connect(trem); trem.connect(lpL); lpL.connect(outL);
   let outR = outL;
-  if (sR) { const tR = ac.createGain(); tR.gain.value = 1; const lpR = onePoleLP(P.lowpass_hz); outR = ac.createGain(); outR.gain.value = lvl; sR.connect(tR); tR.connect(lpR); lpR.connect(outR); trem._r = tR; }
+  if (sR) { const tR = ac.createGain(); tR.gain.value = 1; const lpR = lpOf(P.lowpass_hz); outR = ac.createGain(); outR.gain.value = lvl; sR.connect(tR); tR.connect(lpR); lpR.connect(outR); trem._r = tR; }
   if (organ && P.trem_depth > 0) {           // tremulant: level dip and a little pitch wobble
     const d = P.trem_depth / 100, lfo = ac.createOscillator(); lfo.frequency.value = P.trem_rate; starts.push(lfo);
     trem.gain.value = 1 - d * 0.225; const ga = ac.createGain(); ga.gain.value = -d * 0.225; lfo.connect(ga); ga.connect(trem.gain);
@@ -4673,8 +4746,19 @@ function pipeSource(P, f0, i, organ) {
   }
   const wob = 0.11 + 0.08 * Math.random(), wph = Math.random() * 2 * Math.PI;
   return { outL, outR, starts, fp, detune: [], pan: 0,
-    at(t0, hold, total, el) {
-      if (P.fm_index > 0) {                  // slow index wobble, ±33 %, per note
+    mods(mv, n, t0, dur, el) {               // v63: index (with its wobble on top), halo, stops, low-pass and output gain over time
+      const dtj = dur / Math.max(n - 1, 1), g = (k, j) => mv[k] ? mv[k][j] : P[k];
+      if (mv.fm_index) for (const ig of idxGains) modCurve(ig.gain, n, j => Math.max(0, mv.fm_index[j]) * (1 + 0.33 * Math.sin(wph + 2 * Math.PI * wob * (el + j * dtj))), t0, dur);
+      if (mv.halo_db) for (const hg of hgs) modCurve(hg.gain, n, j => Math.pow(10, mv.halo_db[j] / 20), t0, dur);
+      for (const [gg, k] of rgs) if (mv[k]) modCurve(gg.gain, n, j => mv[k][j] / 100, t0, dur);
+      if (mv.lowpass_hz) for (const b of lps) modCurve(b.frequency, n, j => Math.min(mv.lowpass_hz[j], ac.sampleRate * 0.45), t0, dur);
+      if (mv.output_gain_db || STOPK.some(k => mv[k])) {
+        const lv = j => lvlOf(g('output_gain_db', j), ranks.length ? rkNormOf(ranks.map(r => g(r[2], j) / 100)) : 1);
+        modCurve(outL.gain, n, lv, t0, dur); if (outR !== outL) modCurve(outR.gain, n, lv, t0, dur);
+      }
+    },
+    at(t0, hold, total, el, mv) {
+      if (P.fm_index > 0 && !(mv && mv.fm_index)) {     // slow index wobble, ±33 %, per note
         const nC = Math.max(2, Math.min(2000, Math.ceil(total * 10))), dtc = total / (nC - 1), c = new Float32Array(nC);
         for (let j = 0; j < nC; j++) c[j] = P.fm_index * (1 + 0.33 * Math.sin(wph + 2 * Math.PI * wob * (el + j * dtc)));
         try { for (const g of idxGains) g.gain.setValueCurveAtTime(c, t0, total); } catch (e) { }
@@ -4716,22 +4800,32 @@ const ENG_V62 = {
         }
         src.connect(oscG); starts.push(src);
       }
-      if (P.noise_mix > 0) { const nb = ac.createBufferSource(); nb.buffer = getNoise(); nb.loop = true; nb._off = Math.random() * 3.9; const ng = ac.createGain(); ng.gain.value = P.noise_mix * Math.sqrt(3); nb.connect(ng); ng.connect(mix); starts.push(nb); }
+      let ngRef = null;
+      if (P.noise_mix > 0 || ctlMod(P, 'noise_mix')) { const nb = ac.createBufferSource(); nb.buffer = getNoise(); nb.loop = true; nb._off = Math.random() * 3.9; const ng = ac.createGain(); ng.gain.value = P.noise_mix * Math.sqrt(3); nb.connect(ng); ng.connect(mix); starts.push(nb); ngRef = ng; }
       // the plug-in's 2-pole state-variable filter: Q = 1 / (2 (1 − resonance)); band-pass keeps its peak gain of Q
       const q = 1 / Math.max(0.001, 2 * (1 - P.resonance)), flt = ac.createBiquadFilter();
       flt.type = P.filter_type === 'bp' ? 'bandpass' : P.filter_type === 'hp' ? 'highpass' : 'lowpass';
       let fc = P.cutoff_hz; const kt = P.key_track === 'on'; if (kt) fc *= Math.pow(2, (midiOf(f0) - 60) / 12);
-      flt.frequency.value = Math.min(fc, sr * 0.45); if (kt) fp.push([flt.frequency, fc / f0]);
-      flt.Q.value = flt.type === 'bandpass' ? q : 20 * Math.log10(Math.min(q, 60));
+      const ktf = kt ? Math.pow(2, (midiOf(f0) - 60) / 12) : 1, modCut = ctlMod(P, 'cutoff_hz');
+      flt.frequency.value = Math.min(fc, sr * 0.45); if (kt && !modCut) fp.push([flt.frequency, fc / f0]);
+      const qOf = r => { const qq = 1 / Math.max(0.001, 2 * (1 - r)); return flt.type === 'bandpass' ? qq : 20 * Math.log10(Math.min(qq, 60)); };
+      flt.Q.value = qOf(P.resonance);
       mix.connect(flt);
       let last = flt;
-      if (flt.type === 'bandpass') { const bg = ac.createGain(); bg.gain.value = q; flt.connect(bg); last = bg; }
+      let bgRef = null;
+      if (flt.type === 'bandpass') { const bg = ac.createGain(); bg.gain.value = q; flt.connect(bg); last = bg; bgRef = bg; }
       if (P.drive > 0) { const ws = ac.createWaveShaper(); ws.curve = driveCurve(P.drive * 4); ws.oversample = '2x'; const pre = ac.createGain(), post = ac.createGain(); pre.gain.value = 1 / 3; post.gain.value = 3; last.connect(pre); pre.connect(ws); ws.connect(post); last = post; }
       // stereo as the plug-in: one voice sits by pitch, unison voices in the centre
       const np = N === 1 ? clamp(0.5 + (midiOf(f0) - 60) * 0.01, 0.1, 0.9) : 0.5, g = P.master_amp * 0.8 * ENG_K;
       const outL = ac.createGain(), outR = ac.createGain(); outL.gain.value = g * (1 - np) * 2 * Math.SQRT1_2; outR.gain.value = g * np * 2 * Math.SQRT1_2;
       last.connect(outL); last.connect(outR);
-      return { outL, outR, starts, fp, detune: [], pan: 0 };
+      return { outL, outR, starts, fp, detune: [], pan: 0,
+        mods(mv, n, t0, dur) {               // v63: cutoff (with key tracking), resonance, noise mix and level over time
+          if (mv.cutoff_hz) modCurve(flt.frequency, n, j => Math.min(mv.cutoff_hz[j] * ktf, sr * 0.45), t0, dur);
+          if (mv.resonance) { modCurve(flt.Q, n, j => qOf(mv.resonance[j]), t0, dur); if (bgRef) modCurve(bgRef.gain, n, j => 1 / Math.max(0.001, 2 * (1 - mv.resonance[j])), t0, dur); }
+          if (mv.noise_mix) { modCurve(oscG.gain, n, j => (1 - mv.noise_mix[j]) / Math.sqrt(N), t0, dur); if (ngRef) modCurve(ngRef.gain, n, j => mv.noise_mix[j] * Math.sqrt(3), t0, dur); }
+          if (mv.master_amp) { modCurve(outL.gain, n, j => mv.master_amp[j] * 0.8 * ENG_K * (1 - np) * 2 * Math.SQRT1_2, t0, dur); modCurve(outR.gain, n, j => mv.master_amp[j] * 0.8 * ENG_K * np * 2 * Math.SQRT1_2, t0, dur); }
+        } };
     } },
   LH_Organ: Object.assign({ cost: P => 3 + [P.stop16, P.stop4, P.stop3, P.stop2, P.stop1].filter(x => x > 0).length, source: (P, f0, i) => pipeSource(P, f0, i, true) }, ORGAN_ENV),
   LH_FM_Chord: Object.assign({ cost: () => 4, source: (P, f0, i) => pipeSource(P, f0, i, false) }, ORGAN_ENV),
@@ -4748,7 +4842,7 @@ function engineEnvelope(x, pr) {
   const g0 = E.hold((n - 1) * dt, P), last = x.amp[n - 1];
   for (let k = 0; k < relN; k++) amp[n + k] = last * E.rel(g0, (k + 1) * dt, P);
   const ext = arr => { if (!arr) return arr; const o = new Float32Array(n + relN); o.set(arr); o.fill(arr[n - 1], n); return o; };
-  x.hold = x.dur; x.amp = amp; x.fcurve = ext(x.fcurve); x.pan = ext(x.pan); x.dur = x.dur + relN * dt;
+  x.hold = x.dur; x.amp = amp; x.fcurve = ext(x.fcurve); x.pan = ext(x.pan); if (x.mods) for (const m of x.mods) m.c = ext(m.c); x.dur = x.dur + relN * dt;
 }
 
 function liveSound(s, pt) {
@@ -4893,7 +4987,17 @@ function unitVoices(s, key) {
     }
   }
   const pr = presetFor(s.layer);
-  if (pr) for (const x of v) { x.preset = pr; engineEnvelope(x, pr); }
+  if (pr) {
+    const lanes = activeMods(s, pr);
+    if (lanes.length) {                 // v63: each lane becomes the control's value at every amplitude step of the voice
+      const [s0, s1] = unitSpan(s), sl = Math.max(s1 - s0, 0.001);
+      for (const x of v) {
+        const n = x.amp.length, dt = x.dur / Math.max(n - 1, 1);
+        x.mods = lanes.map(m => { const c = new Float32Array(n); for (let k = 0; k < n; k++) c[k] = modDenorm(m.d, envAt(m.pts, (x.t0 + k * dt - s0) / sl)); return { k: m.k, c }; });
+      }
+    }
+    for (const x of v) { x.preset = pr; engineEnvelope(x, pr); }
+  }
   return v;
 }
 function schedule(voices, startAt, bus) {
@@ -4904,14 +5008,15 @@ function schedule(voices, startAt, bus) {
   const list = voices.slice(0, Math.max(1, nMax)), oscs = [];
   const now = ac.currentTime + 0.03;
   list.forEach((v, i) => {
-    let t = startAt + v.t0, amp = v.amp, fcv = v.fcurve, dur = v.dur, pcv = v.pan;
+    let t = startAt + v.t0, amp = v.amp, fcv = v.fcurve, dur = v.dur, pcv = v.pan, mods = v.mods;
     if (t + dur < now + 0.02) return;
     if (t < now) {                       // started before the play point: join it part-way through
       const dtv = v.dur / v.amp.length, skip = Math.min(v.amp.length - 2, Math.ceil((now - t) / dtv));
       amp = v.amp.subarray(skip); if (fcv) fcv = fcv.subarray(skip); if (pcv) pcv = pcv.subarray(skip);
+      if (mods) mods = mods.map(m => ({ k: m.k, c: m.c.subarray(skip) }));
       dur = v.dur - skip * dtv; t += skip * dtv;
     }
-    const src = buildSource(v, fcv ? fcv[0] : v.f, i), gn = ac.createGain();
+    const src = buildSource(v, fcv ? fcv[0] : v.f, i, mods), gn = ac.createGain();
     gn.gain.value = 0;
     const curve = new Float32Array(amp.length + 2); curve.set(amp, 1);   // starts and ends at 0, so no clicks
     let pn;
@@ -4949,7 +5054,9 @@ function schedule(voices, startAt, bus) {
         const nyq = ac.sampleRate * 0.45;
         for (const [prm, mult] of src.fp) { const c2 = new Float32Array(fc.length); for (let k = 0; k < fc.length; k++) c2[k] = Math.min(fc[k] * mult, nyq); prm.setValueCurveAtTime(c2, safeT, dur); }
       }
-      if (src.at) src.at(safeT, v.hold != null ? v.hold - (safeT - startAt - v.t0) : dur, dur, Math.max(0, safeT - startAt - v.t0));
+      const el = Math.max(0, safeT - startAt - v.t0), mv = mods && mods.length ? Object.fromEntries(mods.map(m => [m.k, m.c])) : null;
+      if (mv && src.mods) src.mods(mv, amp.length, safeT, dur, el);
+      if (src.at) src.at(safeT, v.hold != null ? v.hold - (safeT - startAt - v.t0) : dur, dur, el, mv);
       for (const n of src.starts) { n.start(safeT, n._off || 0); n.stop(safeT + dur + 0.05); oscs.push(n); }
     } catch (e) { /* a voice that can't be scheduled is skipped */ }
   });
@@ -5377,19 +5484,113 @@ const selUnit = () => state.strokes.find(s => s.id === state.selected) || null;
 const PAN_FLAT = [[0, 0.5, 'lin', 0.5], [1, 0.5, 'lin', 0.5]];
 state.laneMode = 'vol';
 const panMode = () => state.laneMode === 'pan';
+// ---- v63: modulation envelopes, up to 3 per unit; each one moves one control of the layer's sound across the unit
+const MOD_MAX = 3;
+const MOD_KEYS = {
+  LH_Breath: ['bandwidth_pct', 'bandwidth_floor_hz', 'note_width_pct', 'output_gain_db'],
+  LH_Additive: ['harm_decay', 'master_amp'],
+  LH_FM: ['fm_index', 'sub_mix', 'master_amp'],
+  LH_Modal: ['output_gain_db'],
+  LH_Subtractive: ['cutoff_hz', 'resonance', 'noise_mix', 'master_amp'],
+  LH_Organ: ['fm_index', 'halo_db', 'stop16', 'stop4', 'stop3', 'stop2', 'stop1', 'lowpass_hz', 'output_gain_db'],
+  LH_FM_Chord: ['fm_index', 'halo_db', 'lowpass_hz', 'output_gain_db'],
+};
+const layerSoundOf = s => soundById(state.layerSound[s.layer]);
+const modDef = (engine, k) => (MOD_KEYS[engine] || []).includes(k) ? (ENGINE_DEFS[engine] || []).find(d => d.k === k && d.min != null) || null : null;
+const modDefsFor = engine => (MOD_KEYS[engine] || []).map(k => modDef(engine, k)).filter(Boolean);
+const modNorm = (d, v) => clamp(d.log ? Math.log(Math.max(v, d.min) / d.min) / Math.log(d.max / d.min) : (v - d.min) / (d.max - d.min), 0, 1);
+const modDenorm = (d, u) => d.log ? d.min * Math.pow(d.max / d.min, clamp(u, 0, 1)) : d.min + clamp(u, 0, 1) * (d.max - d.min);
+const modIdx = () => /^mod\d$/.test(state.laneMode) ? +state.laneMode[3] : -1;
+const valMode = () => state.laneMode !== 'vol';
+const modLane = s => { const i = modIdx(); return i >= 0 && s && s.mods ? s.mods[i] || null : null; };
+const modShort = l => l.replace(/\s*\(.*\)\s*$/, '');
+function modFmt(d, v) {
+  const u = d.u || '';
+  if (u === 'Hz') return v >= 1000 ? (v / 1000).toFixed(v >= 10000 ? 1 : 2) + 'k' : v.toFixed(v < 10 ? 2 : 0);
+  if (u === 'dB') return (v > 0 ? '+' : '') + v.toFixed(Math.abs(v) < 10 ? 1 : 0);
+  if (u === '%' || /^%/.test(u)) return v.toFixed(v < 10 ? 1 : 0) + (u === '%' ? '%' : '');
+  return Math.abs(v) < 1 ? v.toFixed(3) : Math.abs(v) < 10 ? v.toFixed(2) : v.toFixed(1);
+}
+const modUnit = d => d.u === 'Hz' ? 'Hz' : d.u === 'dB' ? 'dB' : d.u === '% of pitch' ? '% of pitch' : '';
+function modFlat(s, k) {
+  const pr = layerSoundOf(s), d = pr && modDef(pr.engine, k);
+  const v = d ? +modNorm(d, fullParams(pr)[k]).toFixed(5) : 0.5;
+  return [[0, v, state.defCurve || 'exp', 0.5], [1, v, state.defCurve || 'exp', 0.5]];
+}
+// the lanes that sound: their control exists in the layer's current sound
+function activeMods(s, pr) {
+  if (!s.mods || !pr) return [];
+  return s.mods.map(m => ({ k: m.k, d: modDef(pr.engine, m.k), pts: m.pts })).filter(m => m.d && Array.isArray(m.pts) && m.pts.length > 1);
+}
+const rawValEnv = s => { if (panMode()) return rawPanEnv(s); const m = modLane(s); return m ? m.pts : PAN_FLAT; };
 const rawPanEnv = s => (s.pan_env && s.pan_env.length > 1) ? s.pan_env : PAN_FLAT;
-function targetEnv(s) { if (panMode()) return rawPanEnv(s); return state.envTarget === 'unit' ? rawUnitEnv(s) : rawNoteEnv(s, state.envTarget); }
-function heardEnv(s) { if (panMode()) return rawPanEnv(s); return state.envTarget === 'unit' ? unitEnv(s) : noteEnv(s, state.envTarget); }
+function targetEnv(s) { if (valMode()) return rawValEnv(s); return state.envTarget === 'unit' ? rawUnitEnv(s) : rawNoteEnv(s, state.envTarget); }
+function heardEnv(s) { if (valMode()) return rawValEnv(s); return state.envTarget === 'unit' ? unitEnv(s) : noteEnv(s, state.envTarget); }
 function setLaneMode(m) {
   state.laneMode = m; selSeg = null; selPoint = null; lfoSec = false;
-  if (m === 'pan') state.envTarget = 'unit';
+  if (m !== 'vol') state.envTarget = 'unit';
+  renderLaneHeader();
+  const s = selUnit(), ml = modLane(s), pr = s && layerSoundOf(s), d = ml && pr && modDef(pr.engine, ml.k);
+  status(m === 'pan' ? 'Pan envelope: top is right, the middle line is centre, the bottom is left. Draw and edit it like the loudness envelope.'
+    : ml ? (d ? `${d.l}: the top of the lane is ${modFmt(d, d.max)}${modUnit(d) ? ' ' + modUnit(d) : ''}, the bottom ${modFmt(d, d.min)}${d.log ? ' (log scale)' : ''}. The envelope sets the control across the unit, in place of the preset value.`
+      : `This layer's sound has no ${ml.l || ml.k}. The envelope is kept and plays again if you switch back.`)
+    : 'Loudness envelope.');
+}
+function paintLaneMode() {
+  const m = state.laneMode;
+  $('fader').style.visibility = m === 'vol' ? '' : 'hidden';      // the record fader is loudness only
   $('laneVol').classList.toggle('on', m === 'vol'); $('laneVol').setAttribute('aria-pressed', m === 'vol');
   $('lanePan').classList.toggle('on', m === 'pan'); $('lanePan').setAttribute('aria-pressed', m === 'pan');
-  renderLaneHeader();
-  status(m === 'pan' ? 'Pan envelope: top is right, the middle line is centre, the bottom is left. Draw and edit it like the loudness envelope.' : 'Loudness envelope.');
 }
+function renderModRow() {
+  const s = selUnit(), pr = s ? layerSoundOf(s) : null, defs = pr ? modDefsFor(pr.engine) : [];
+  const mods = (s && s.mods) || [], i = modIdx(), esc = t => String(t).replace(/[<>&"]/g, '');
+  $('modChips').innerHTML = mods.map((m, j) => {
+    const d = pr && modDef(pr.engine, m.k), lab = d ? d.l : (m.l || m.k);
+    return `<button class="chip mod${j === i ? ' on' : ''}${d ? '' : ' off'}" data-mod="${j}" aria-pressed="${j === i}" title="${esc(lab)}${d ? '' : ' (not in this sound)'}">${j + 1} · ${esc(modShort(lab))}</button>`;
+  }).join('');
+  $('modChips').querySelectorAll('[data-mod]').forEach(b => b.addEventListener('click', () => setLaneMode('mod' + b.dataset.mod)));
+  const ml = i >= 0 ? mods[i] : null, sel = $('modParam');
+  sel.hidden = !ml; $('modDel').hidden = !ml;
+  if (ml) {
+    const opts = defs.map(d => `<option value="${d.k}">${esc(d.l)}</option>`);
+    if (!defs.some(d => d.k === ml.k)) opts.unshift(`<option value="${esc(ml.k)}">${esc(ml.l || ml.k)} (not in this sound)</option>`);
+    sel.innerHTML = opts.join(''); sel.value = ml.k;
+  }
+  $('modAdd').disabled = !s || mods.length >= MOD_MAX || !defs.length;
+  $('modNote').textContent = !s ? '' : !pr ? 'Give this layer a sound to modulate its controls.'
+    : !defs.length ? `${ENGINE_NAME[pr.engine] || pr.engine} has no controls to modulate.`
+    : mods.length >= MOD_MAX ? 'Three per unit.' : !mods.length ? `${pr.name || ENGINE_NAME[pr.engine]}: up to 3 controls` : '';
+}
+$('modAdd').addEventListener('click', () => {
+  const s = selUnit(); if (!s) return;
+  const pr = layerSoundOf(s), defs = pr ? modDefsFor(pr.engine) : [];
+  if (!defs.length || (s.mods && s.mods.length >= MOD_MAX)) return;
+  pushUndo();
+  const used = new Set((s.mods || []).map(m => m.k)), d = defs.find(x => !used.has(x.k)) || defs[0];
+  s.mods = s.mods || [];
+  s.mods.push({ k: d.k, s: d.s, e: pr.engine, l: d.l, pts: modFlat(s, d.k) });
+  changed(false); setLaneMode('mod' + (s.mods.length - 1));
+});
+$('modParam').addEventListener('change', e => {
+  const s = selUnit(), m = modLane(s); if (!m) return;
+  const pr = layerSoundOf(s), d = pr && modDef(pr.engine, e.target.value); if (!d) return;
+  pushUndo();
+  const old = modFlat(s, m.k), flat = m.pts.length === 2 && Math.abs(m.pts[0][1] - old[0][1]) < 1e-4 && Math.abs(m.pts[1][1] - old[1][1]) < 1e-4;
+  Object.assign(m, { k: d.k, s: d.s, e: pr.engine, l: d.l });
+  if (flat) m.pts = modFlat(s, d.k);          // an untouched lane starts again at the preset's value; a drawn one keeps its shape
+  changed(false); setLaneMode(state.laneMode);
+});
+$('modDel').addEventListener('click', () => {
+  const s = selUnit(), i = modIdx(); if (!s || !s.mods || !s.mods[i]) return;
+  pushUndo();
+  const gone = s.mods.splice(i, 1)[0]; if (!s.mods.length) delete s.mods;
+  changed(false); setLaneMode('vol');
+  status(`Removed the ${gone.l || gone.k} envelope.`);
+});
 function setTargetEnv(s, pts) {
   if (panMode()) { s.pan_env = pts; return; }
+  if (modIdx() >= 0) { const m = modLane(s); if (m) m.pts = pts; return; }
   if (state.envTarget === 'unit') s.env = pts;
   else { s.note_env = s.note_env || {}; s.note_env[state.envTarget] = pts; }
 }
@@ -5407,6 +5608,8 @@ function unitNotes(s) {
 function renderLaneHeader() {
   const s = selUnit();
   if ((s ? s.id : null) !== laneSelId) { laneSelId = s ? s.id : null; state.envTarget = 'unit'; selSeg = null; selPoint = null; if (reduceState) closeReduce(false); stopLoop(); if (typeof finishRecord === 'function') finishRecord(); }
+  if (modIdx() >= 0 && !modLane(s)) { state.laneMode = 'vol'; selSeg = null; selPoint = null; }
+  paintLaneMode(); renderModRow();
   const sel = document.getElementById('envTarget'), unitEl = document.getElementById('laneUnit');
   const ctrls = ['envTarget', 'loopBtn', 'saveShape', 'resetEnv', 'recBtn', 'copyEnv', 'pasteEnv', 'reduceBtn', 'delPoint', 'lfoBtn', 'secBtn'].map(id => document.getElementById(id));
   if (!s) {
@@ -5417,7 +5620,7 @@ function renderLaneHeader() {
     renderCurveRow(); requestDraw(); return;
   }
   ctrls.forEach(c => c.disabled = false);
-  if (panMode()) ['envTarget', 'lfoBtn', 'secBtn', 'recBtn'].forEach(id => { document.getElementById(id).disabled = true; });
+  if (valMode()) ['envTarget', 'lfoBtn', 'secBtn', 'recBtn'].forEach(id => { document.getElementById(id).disabled = true; });
   const [s0, s1] = unitSpan(s), L = layerById(s.layer);
   const mmss = t => Math.floor(t / 60) + ':' + (t % 60).toFixed(1).padStart(4, '0');
   unitEl.textContent = `${KindName(s.kind)} · ${L.name} · ${mmss(s0)}–${mmss(s1)}`;
@@ -5507,7 +5710,7 @@ function renderShapes() {
       const sh = all[+b.dataset.shape];
       pushUndo(); setTargetEnv(s2, sh.pts.map(p => p.slice()));
       // saved shapes bring their LFO (or clear it); built-ins leave the LFO alone
-      if (+b.dataset.shape >= SHAPES.length && !panMode()) { if (sh.lfo) s2.lfo = JSON.parse(JSON.stringify(sh.lfo)); else delete s2.lfo; }
+      if (+b.dataset.shape >= SHAPES.length && !valMode()) { if (sh.lfo) s2.lfo = JSON.parse(JSON.stringify(sh.lfo)); else delete s2.lfo; }
       changed(false); renderLaneHeader();
       status(`${all[+b.dataset.shape].name} applied to ${state.envTarget === 'unit' ? 'the whole unit' : 'one note'}.`);
     });
@@ -5522,6 +5725,7 @@ document.getElementById('resetEnv').addEventListener('click', () => {
   const s = selUnit(); if (!s) return;
   pushUndo();
   if (panMode()) { delete s.pan_env; changed(false); renderLaneHeader(); status('Pan reset to centre.'); return; }
+  if (modIdx() >= 0) { const m = modLane(s); if (m) m.pts = modFlat(s, m.k); changed(false); renderLaneHeader(); status('Flat again, at the preset value.'); return; }
   if (state.envTarget === 'unit') { delete s.env; delete s.lfo; delete s.env_mod; } else if (s.note_env) delete s.note_env[state.envTarget];
   changed(false); renderLaneHeader();
   status(state.envTarget === 'unit' ? 'Envelope reset to flat, with no LFO.' : 'This note follows the chord envelope again.');
@@ -5537,7 +5741,7 @@ function keepShape() {
   const name = shapeName.value.trim() || ('Shape ' + (userShapes.length + 1));
   const existing = userShapes.findIndex(u => u.name === name);
   const entry = { name, pts: targetEnv(s).map(p => p.slice()) };
-  if (s.lfo && !panMode()) entry.lfo = JSON.parse(JSON.stringify(s.lfo));
+  if (s.lfo && !valMode()) entry.lfo = JSON.parse(JSON.stringify(s.lfo));
   if (existing >= 0) userShapes[existing] = entry; else userShapes.push(entry);
   saveShapes(); nameBox.hidden = true; renderShapes();
   status(existing >= 0 ? `Updated the shape ${name}.` : `Saved the shape ${name}. Tap it to apply it to any unit; it's kept on this iPad and in saved sketches.`);
@@ -5698,11 +5902,11 @@ lane.addEventListener('pointerdown', e => {
     if (hb) { try { lane.releasePointerCapture(e.pointerId); } catch (er) { } selSeg = hb.i; selPoint = null; renderCurveRow(); requestDraw(); openSegPop(hb.i, hb.x, hb.y); return; } }
   pushUndo();
   // 0. LFO section: the [ ] tabs at the foot of the lane move its edges; Section mode or ⇧ drags a new one
-  if (!panMode() && s.lfo && s.lfo.range && pt.y > VY(0) - 24) {
+  if (!valMode() && s.lfo && s.lfo.range && pt.y > VY(0) - 24) {
     const xs = s.lfo.range.map(r => XL(s0 + r * sl)), d = xs.map(x => Math.abs(x - pt.x)), w = d[0] <= d[1] ? 0 : 1;
     if (d[w] < 16) { laneEdit = { mode: 'edge', which: w, uOf }; return; }
   }
-  if (!panMode() && (lfoSec || e.shiftKey)) { const u0 = clamp(uOf(pt.x), 0, 1); laneEdit = { mode: 'sec', a: u0, b: u0, uOf }; requestDraw(); return; }
+  if (!valMode() && (lfoSec || e.shiftKey)) { const u0 = clamp(uOf(pt.x), 0, 1); laneEdit = { mode: 'sec', a: u0, b: u0, uOf }; requestDraw(); return; }
   // 1. on a point: select it / drag it (a double tap deletes it)
   const near = env.findIndex(p => Math.abs(XL(s0 + p[0] * sl) - pt.x) < 14 && Math.abs(VY(p[1]) - pt.y) < 14);
   // v51.1: ⌥-click / ⌥-tap a point = delete it (as the Mac)
@@ -5809,7 +6013,15 @@ function drawLane() {
   const x0 = LM.l, x1 = LW - LM.r;
   c.font = '10px "IBM Plex Mono", ui-monospace, monospace'; c.textBaseline = 'middle';
   // level grid: 60 dB in 12 dB steps
-  if (panMode()) {          // pan grid: R at the top, centre in the middle, L at the bottom
+  const mlD = (() => { const m = modLane(s), pr = m && layerSoundOf(s); return pr ? modDef(pr.engine, m.k) : null; })();
+  if (modIdx() >= 0) {      // v63 modulation grid, in the control's own units (log controls on a log scale)
+    for (let i = 0; i <= 8; i++) {
+      const v = 1 - i / 8, y = Math.round(VY(v));
+      c.fillStyle = i === 0 || i === 8 ? 'rgba(46,38,31,0.12)' : (i % 2 ? 'rgba(46,38,31,0.03)' : 'rgba(46,38,31,0.06)'); c.fillRect(x0, y, x1 - x0, 1);
+      if (i % 2 === 0) { c.fillStyle = '#6b3f73'; c.textAlign = 'right'; c.fillText(mlD ? modFmt(mlD, modDenorm(mlD, v)) : '', x0 - 6, y); }
+    }
+    if (s && !mlD) { c.fillStyle = '#8a7f72'; c.textAlign = 'center'; c.font = '12px "Public Sans", system-ui, sans-serif'; c.fillText("This layer's sound doesn't have this control. The envelope is kept.", (x0 + x1) / 2, LM.t + 14); c.font = '10px "IBM Plex Mono", ui-monospace, monospace'; }
+  } else if (panMode()) {          // pan grid: R at the top, centre in the middle, L at the bottom
     const labs = ['R', 'R 50', 'C', 'L 50', 'L'];
     for (let i = 0; i <= 4; i++) {
       const v = 1 - i / 4, y = Math.round(VY(v));
@@ -5849,7 +6061,7 @@ function drawLane() {
     for (let i = 0; i <= N; i++) { const u = i / N, x = XL(s0 + u * sl), y = VY(envAt(pts, u)); i ? c.lineTo(x, y) : c.moveTo(x, y); }
     c.stroke(); c.setLineDash([]);
   };
-  if (state.envTarget !== 'unit' && !panMode()) curve(rawUnitEnv(s), rgba(L.hue, 0.45), 1.2, [4, 4]);   // the chord's envelope, for reference
+  if (state.envTarget !== 'unit' && !valMode()) curve(rawUnitEnv(s), rgba(L.hue, 0.45), 1.2, [4, 4]);   // the chord's envelope, for reference
   const env = recording && recording.id === s.id ? recording.preview : targetEnv(s);
   const heard = recording ? env : heardEnv(s), mod = !!heard.m;
   // the LFO's section (or one being dragged): a plum band
@@ -5884,6 +6096,11 @@ function drawLane() {
   if (!recording && env.length <= 40) { c.fillStyle = '#266268'; env.forEach(p => { c.beginPath(); c.arc(XL(s0 + p[0] * sl), VY(p[1]), 4, 0, Math.PI * 2); c.fill(); }); }
   if (!recording && selPoint != null && env[selPoint]) {
     c.strokeStyle = '#a8323e'; c.lineWidth = 2; c.beginPath(); c.arc(XL(s0 + env[selPoint][0] * sl), VY(env[selPoint][1]), 8, 0, Math.PI * 2); c.stroke();
+    if (mlD) {
+      const px = XL(s0 + env[selPoint][0] * sl), py = VY(env[selPoint][1]), txt = modFmt(mlD, modDenorm(mlD, env[selPoint][1])) + (modUnit(mlD) ? ' ' + modUnit(mlD) : '');
+      c.font = '600 11px "IBM Plex Mono", ui-monospace, monospace'; c.textBaseline = 'middle';
+      c.textAlign = px > x1 - 90 ? 'right' : 'left'; c.fillStyle = '#4a2a50'; c.fillText(txt, px + (px > x1 - 90 ? -12 : 12), py < LM.t + 14 ? py + 14 : py - 12);
+    }
   }
   const bh = !recording && bendHandle(s, env);
   if (bh) {
@@ -5923,8 +6140,8 @@ function renderLfo() {
   $('lfoBtn').classList.toggle('on', !!f && lfoOpen);
   $('secBtn').classList.toggle('on', lfoSec);
   $('secBtn').setAttribute('aria-pressed', lfoSec ? 'true' : 'false');
-  $('lfoRow').hidden = !(f && lfoOpen && !panMode());
-  $('lfoMoreRow').hidden = !(f && lfoOpen && lfoMore && !panMode());
+  $('lfoRow').hidden = !(f && lfoOpen && !valMode());
+  $('lfoMoreRow').hidden = !(f && lfoOpen && lfoMore && !valMode());
   if (!f) return;
   $('lfoShape').value = f.shape || 'sine';
   const hz = f.rate_mode === 'hz';
@@ -6515,7 +6732,7 @@ resize();
 </script>
 
 <script>
-/* Standalone build v62-20261107-1634-a40c74: keep the app on the iPad so it opens with no internet. */
+/* Standalone build v63-20261107-1649-1b93d0: keep the app on the iPad so it opens with no internet. */
 if ('serviceWorker' in navigator) window.addEventListener('load', () => {
   navigator.serviceWorker.register('sw.js').catch(() => { });
 });
