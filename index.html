@@ -246,6 +246,13 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
 .librow input:focus { border-color: var(--teal); outline: none; }
 .librow small { display: block; color: var(--muted); font-family: var(--font-data); font-size: 11px; padding: 0 6px; }
 .librow .selrow { flex-wrap: nowrap; }
+.sheet.store { width: min(760px, 100%); max-height: calc(100% - 24px); box-sizing: border-box; overflow-y: auto; }
+.skrow { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
+.skrow.cur { border-color: var(--teal); }
+.skrow b { font-weight: 600; padding: 0 6px; }
+.skrow small { display: block; color: var(--muted); font-family: var(--font-data); font-size: 11px; padding: 0 6px; }
+.skrow small .uns { color: #8a4b2a; }
+.skrow .selrow { flex-wrap: nowrap; }
 .sheet.lab > .labhead { grid-row: 1; } .sheet.lab > .askbar { grid-row: 2; } .sheet.lab > .labgrid { grid-row: 3; } .sheet.lab > .labplay { grid-row: 4; }
 .labhead { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .labhead .sp { flex: 1; }
@@ -427,7 +434,8 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
       <section class="sketch stab-score">
         <h2>Sketch</h2>
         <input id="name" type="text" aria-label="Sketch name" autocomplete="off" placeholder="Sketch name">
-        <div class="selrow"><button class="btn" id="open">Open…</button><button class="btn" id="new">New</button></div>
+        <div class="selrow"><button class="btn" id="open" title="Sketches on this iPad, or a file from iCloud (⌘O)">Open…</button><button class="btn" id="new">New</button></div>
+<div class="selrow"><button class="btn" id="sendIC" title="Put a copy in iCloud Drive for the Mac">Send to iCloud…</button></div>
         <label class="ctl stack">Field
           <span class="selrow"><select id="fieldType"></select><select id="fieldRoot" aria-label="Field root"></select></span>
         </label>
@@ -475,6 +483,14 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
     <p class="note">One file holds your saved units and your Sound Lab presets, to keep or to carry to another sketch. Sketches already carry both.</p>
     <div class="selrow"><button class="btn" id="libExport">Export library…</button><button class="btn" id="libImport">Import library…</button></div>
   </div>
+</div>
+<div class="overlay" id="storeBox" hidden role="dialog" aria-modal="true" aria-labelledby="storeTitle">
+<div class="sheet store">
+<div class="labhead"><h3 id="storeTitle">Sketches on this iPad</h3><span class="note">Save keeps sketches here. Send to iCloud when you want one on the Mac.</span><span class="sp"></span><button class="btn primary" id="storeClose">Done</button></div>
+<div class="askbar" id="storeAskBar" hidden style="margin-top:8px"><span id="storeAskText"></span><span class="selrow" id="storeAskBtns"></span></div>
+<div class="selrow" style="margin-top:10px"><button class="btn" id="storeFiles">Open a file from iCloud…</button><button class="btn" id="storeSendAll" hidden>Send unsent to iCloud…</button></div>
+<div id="storeList" class="liblist"></div>
+</div>
 </div>
 <div class="overlay" id="labBox" hidden role="dialog" aria-modal="true" aria-labelledby="labTitle">
   <div class="sheet lab">
@@ -802,6 +818,7 @@ const noteName = m => NOTE[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const mmss = t => { const m = Math.floor(t / 60), s = t - m * 60; return m + ':' + (Math.abs(s - Math.round(s)) < 0.05 ? String(Math.round(s)).padStart(2, '0') : s.toFixed(1).padStart(4, '0')); };
 const uid = () => Math.random().toString(36).slice(2, 9);
+const newSketchId = () => 'sk' + Date.now().toString(36) + uid();   // v58: one id per sketch, shared with the Mac (its 'id' field)
 const layerById = id => LAYERS.find(l => l.id === id) || LAYERS[0];
 // what the Mac calls each kind (the file keeps 'splash')
 const kindName = k => k === 'splash' ? 'impulse' : k;
@@ -815,7 +832,7 @@ const state = {
   strokes: [],
   // v15: units, layers and settings made on the Mac (blocks, lines, clouds,
   // pulses, extra layers, Mac fields) are kept untouched and saved back
-  macUnits: [], macLayers: [], macField: null, macExtra: {},
+  macUnits: [], macLayers: [], macField: null, macExtra: {}, sketchId: newSketchId(),
   tool: 'band', layer: 'breath', selected: null, wave: 'presets', hear: true,
   defaults: {
     band: { width_oct: 1.2, bandwidth: 0.25, tilt_db_oct: -3, edge_fade: 0.25 },
@@ -3262,7 +3279,7 @@ function toJSON() {
   const out = {
     format: 'lh-spectral-palette-sketch', version: 1,
     app: 'LH Spectral Palette sketchpad (iPad)',
-    name: state.name || 'Untitled sketch',
+    name: state.name || 'Untitled sketch', id: state.sketchId, saved_on: 'iPad',
     created: state.created, modified: new Date().toISOString(),
     time_unit: 'seconds', length_s: state.length, play_from_s: state.playFrom || 0, freq_range_hz: [FMIN, FMAX],
     field: { type: state.field.type, label: FIELDS[state.field.type].label, root_midi: state.field.root, root_name: noteName(state.field.root),
@@ -3295,6 +3312,7 @@ function toJSON() {
 function fromJSON(d) {
   if (!d || d.format !== 'lh-spectral-palette-sketch' || !Array.isArray(d.strokes)) throw new Error('not a sketch');
   state.name = (d.name && d.name !== 'Untitled sketch') ? d.name : ''; state.created = d.created || new Date().toISOString();
+  state.sketchId = (typeof d.id === 'string' && d.id) ? d.id : newSketchId();
   state.length = clamp(+d.length_s || 60, 5, 1200);
   if (d.field && FIELDS[d.field.type]) {
     state.field = { type: d.field.type, root: ROOTS.includes(d.field.root_midi) ? d.field.root_midi : 36 };
@@ -3366,7 +3384,7 @@ window.__lh = { LAYERS, pulseShape: (P, x, l) => pulseShape(P, x, l), pulseShape
 const SAVED_KEY = 'lh-spectral-palette-savedfp-v1';
 const fingerprint = () => JSON.stringify([state.strokes, state.name, state.length, state.field, state.snap, userShapes, state.annotations, state.scoreNotes, state.markers, state.regions,
   state.wave, state.layerSound, LAYERS.map(l => [l.id, l.name, l.engine]), Object.values(state.layerSound || {}).map(id => { let p = null; try { p = soundById(id); } catch (e) { } return p ? [p.id, p.name, p.params] : id; })]);   // v55: a layer's sound counts as a change
-let savedFP = null, unsavedSince = null, lastReminder = 0;
+let savedFP = null, unsavedSince = null, lastReminder = 0, curRec = null;   // v58: curRec = this sketch's record in the iPad store
 try { savedFP = localStorage.getItem(SAVED_KEY); } catch (e) { }
 function isUnsaved() { return fingerprint() !== savedFP; }
 function markSaved() {
@@ -3380,11 +3398,11 @@ function updateSaveState(at) {
   if (!un) unsavedSince = null;
   el.classList.toggle('unsaved', un);
   el.querySelector('span').textContent = un ? 'Unsaved' : (at ? 'Saved ' + at.toTimeString().slice(0, 5) : 'Saved');
-  el.title = un ? 'Changes not saved to a file yet' : 'Saved to a file';
+  el.title = un ? 'Changes not saved yet' : ('Saved on this iPad' + (curRec && curRec.id === state.sketchId ? (isSent(curRec) ? ' · sent to iCloud ' + fmtWhen(curRec.sent) : ' · not sent to iCloud yet') : ''));
 }
 function ask(text, buttons) {
   // v35: inside the Sound Lab or the Unit library the question shows in that sheet (the page's bar is underneath)
-  const pre = !document.getElementById('labBox').hidden ? 'labAsk' : !document.getElementById('libBox').hidden ? 'libAsk' : 'ask';
+  const pre = !document.getElementById('storeBox').hidden ? 'storeAsk' : !document.getElementById('labBox').hidden ? 'labAsk' : !document.getElementById('libBox').hidden ? 'libAsk' : 'ask';
   const bar = document.getElementById(pre + 'Bar'), box = document.getElementById(pre + 'Btns');
   document.getElementById(pre + 'Text').textContent = text;
   box.innerHTML = '';
@@ -3396,7 +3414,7 @@ function ask(text, buttons) {
 }
 function guardUnsaved(what, action) {
   if (!isUnsaved()) { action(); return; }
-  ask(`This sketch has changes that aren't saved to a file. Save it before you ${what}?`, [
+  ask(`This sketch has changes that aren't saved. Save it before you ${what}?`, [
     ['Save first', async () => { if (await doSave()) action(); }, 'primary'],
     ["Don't save", action, 'warn'],
     ['Cancel', null],
@@ -3408,7 +3426,7 @@ setInterval(() => {      // gentle reminder after 10 minutes of unsaved work
   if (now - unsavedSince > 10 * 60e3 && now - lastReminder > 10 * 60e3 && document.getElementById('askBar').hidden) {
     lastReminder = now;
     const mins = Math.round((now - unsavedSince) / 60e3);
-    ask(`About ${mins} minutes of work isn't saved to a file yet.`, [['Save now', () => doSave(), 'primary'], ['Later', null]]);
+    ask(`About ${mins} minutes of work isn't saved yet.`, [['Save now', () => doSave(), 'primary'], ['Later', null]]);
   }
 }, 60e3);
 
@@ -3438,6 +3456,11 @@ if (!(window.claude && window.claude.use)) downloads = { async save({ filename, 
   }
   const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = filename;
   document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+}, async saveMany(list) {   // several sketches in one share sheet (Save to Files saves them all)
+  const files = list.map(({ filename, data }) => new File([data], filename, { type: 'application/json' }));
+  let ok = false; try { ok = navigator.canShare && navigator.canShare({ files }); } catch (e) { }
+  if (!ok) throw { code: 'unsupported' };
+  try { await navigator.share({ files }); } catch (e) { if (e && e.name === 'AbortError') throw { code: 'declined' }; throw e; }
 } };
 // v55: a new sketch is named once (date and time filled in, editable); after that Save just saves under that name
 const stampName = (d = new Date()) => { const z = n => String(n).padStart(2, '0'); return `Sketch ${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}-${z(d.getMinutes())}`; };
@@ -3453,6 +3476,43 @@ function askName() {
     ok.addEventListener('click', onOk); cancel.addEventListener('click', onCancel); inp.addEventListener('keydown', onKey);
   });
 }
+// ---- v58: sketches are kept inside the app (IndexedDB). Save = one tap; Send to iCloud copies one out for the Mac.
+const SK_DB = 'lh-spectral-sketches', SK_ST = 'sketches', SK_LS = 'lh-spectral-sketch-store-v1';
+let skDbP = null;
+function skDb() {
+  if (!skDbP) skDbP = new Promise((res, rej) => {
+    try { const r = indexedDB.open(SK_DB, 1); r.onupgradeneeded = () => r.result.createObjectStore(SK_ST, { keyPath: 'id' }); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }
+    catch (e) { rej(e); }
+  });
+  return skDbP;
+}
+const skLS = () => { try { return JSON.parse(localStorage.getItem(SK_LS) || '{}') || {}; } catch (e) { return {}; } };
+async function skAll() {
+  try { const db = await skDb(); return await new Promise((res, rej) => { const q = db.transaction(SK_ST).objectStore(SK_ST).getAll(); q.onsuccess = () => res(q.result || []); q.onerror = () => rej(q.error); }); }
+  catch (e) { return Object.values(skLS()); }
+}
+async function skPut(rec) {
+  try { const db = await skDb(); await new Promise((res, rej) => { const t = db.transaction(SK_ST, 'readwrite'); t.objectStore(SK_ST).put(rec); t.oncomplete = res; t.onerror = () => rej(t.error); t.onabort = () => rej(t.error); }); }
+  catch (e) { const m = skLS(); m[rec.id] = rec; localStorage.setItem(SK_LS, JSON.stringify(m)); }
+}
+async function skDel(id) {
+  try { const db = await skDb(); await new Promise((res, rej) => { const t = db.transaction(SK_ST, 'readwrite'); t.objectStore(SK_ST).delete(id); t.oncomplete = res; t.onerror = () => rej(t.error); }); }
+  catch (e) { const m = skLS(); delete m[id]; try { localStorage.setItem(SK_LS, JSON.stringify(m)); } catch (er) { } }
+}
+const skGet = async id => (await skAll()).find(r => r.id === id) || null;
+try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { }
+const fmtWhen = iso => {
+  const t = new Date(iso); if (!iso || isNaN(t)) return 'no date';
+  const z = n => String(n).padStart(2, '0'), mon = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][t.getMonth()];
+  return `${t.getDate()} ${mon}${t.getFullYear() !== new Date().getFullYear() ? ' ' + t.getFullYear() : ''} ${z(t.getHours())}:${z(t.getMinutes())}`;
+};
+const tms = iso => { const v = Date.parse(iso || ''); return isNaN(v) ? 0 : v; };
+const isSent = r => !!(r && r.sent && r.sentSaved === r.saved);   // this exact save is in iCloud (clock-proof)
+async function uniqueSketchName(nm, id) {
+  const taken = new Set((await skAll()).filter(r => r.id !== id).map(r => (r.name || '').trim().toLowerCase()));
+  if (!taken.has(nm.trim().toLowerCase())) return nm.trim();
+  for (let i = 2; ; i++) { const c = `${nm.trim()} ${i}`; if (!taken.has(c.toLowerCase())) return c; }
+}
 let saving = false;
 async function doSave() {
   if (saving) return false;                     // v55: one save at a time (no double files from a double tap)
@@ -3461,25 +3521,95 @@ async function doSave() {
 }
 async function doSave1() {
   if (!(state.name || '').trim() || state.name.trim() === 'Untitled sketch') {
-    const nm = await askName(); if (!nm) { status('Not saved. The sketch is still kept on this iPad.'); return false; }
-    state.name = nm; nameIn.value = nm; changed(false);
+    const nm = await askName(); if (!nm) { status('Not saved.'); return false; }
+    state.name = nm;
   }
-  const filename = slug(state.name) + '.json';
-  const data = JSON.stringify(toJSON(), null, 2);
+  const want = state.name.trim(), nm = await uniqueSketchName(want, state.sketchId);
+  if (nm !== state.name) { state.name = nm; nameIn.value = nm; }
+  const prev = await skGet(state.sketchId), data = toJSON();
+  const rec = { id: state.sketchId, name: nm, saved: data.modified, sent: prev ? prev.sent || '' : '', sentSaved: prev ? prev.sentSaved || '' : '', data };
   saveLocal();
+  try { await skPut(rec); }
+  catch (e) { status("Couldn't save on this iPad (storage may be full). Use Send to iCloud… to keep a copy.", true); return false; }
+  curRec = rec; markSaved();
+  status(`Saved “${nm}” on this iPad, ${fmtWhen(rec.saved)}.` + (nm !== want ? ` (“${want}” was taken, so it's “${nm}”.)` : '') + (prev && prev.sent ? '' : ' Send to iCloud… when you want it on the Mac.'));
+  if (!document.getElementById('storeBox').hidden) renderStore();
+  return true;
+}
+// Send one or more stored sketches to iCloud Drive (iPad share sheet → Save to Files)
+async function sendRecs(recs) {
+  const files = recs.map(r => ({ filename: slug(r.name) + '.json', data: JSON.stringify(r.data, null, 2) }));
   if (downloads) {
-    try { await downloads.save({ filename, data }); markSaved(); status(`Saved ${filename}. In Files pick iCloud › 00 – LH Spectral Sketches; if it asks, choose Replace so there stays one file.`); return true; }
-    catch (err) {
+    try {
+      if (files.length > 1) await downloads.saveMany(files); else await downloads.save(files[0]);
+      const now = new Date().toISOString();
+      for (const r of recs) { r.sent = now; r.sentSaved = r.saved; await skPut(r); if (curRec && curRec.id === r.id) { curRec.sent = now; curRec.sentSaved = r.saved; } }
+      updateSaveState(); if (!document.getElementById('storeBox').hidden) renderStore();
+      status(files.length > 1 ? `Sent ${files.length} sketches. In Files pick iCloud › 00 – LH Spectral Sketches; choose Replace if it asks.`
+        : `Sent ${files[0].filename}. In Files pick iCloud › 00 – LH Spectral Sketches; choose Replace if it asks, so there stays one file.`);
+      return true;
+    } catch (err) {
       const code = err && err.code;
-      if (code === 'declined') { status('Save cancelled. The sketch is still kept on this iPad.'); return false; }
+      if (code === 'declined') { status('Not sent. The sketch is still saved on this iPad.'); return false; }
       if (code === 'rate_limited') { status('A save is already waiting for you. Finish that one first.', true); return false; }
     }
   }
-  document.getElementById('copyName').textContent = filename;
-  document.getElementById('copyText').value = data;
+  document.getElementById('copyName').textContent = files[0].filename;
+  document.getElementById('copyText').value = files[0].data;
   document.getElementById('copyBox').hidden = false;
   return false;
 }
+async function sendCurrent() {
+  if (isUnsaved() || !curRec || curRec.id !== state.sketchId) { if (!(await doSave())) return false; }
+  return sendRecs([curRec]);
+}
+document.getElementById('sendIC').addEventListener('click', () => sendCurrent());
+// ---- the list of sketches on this iPad
+function openRec(rec) {
+  try { pushUndo(); if (!document.getElementById('noteBox').hidden) closeNote(); tapRec = null; fromJSON(JSON.parse(JSON.stringify(rec.data))); }
+  catch (e) { undoStack.pop(); status(`“${rec.name}” couldn't be opened.`, true); return; }
+  state.sketchId = rec.id; state.name = rec.name; curRec = rec;
+  syncControls(); fitView(); changed(true); markSaved(); closeStore();
+  status(`Opened “${rec.name}”, saved ${fmtWhen(rec.saved)}.` + ((state.macUnits && state.macUnits.length) ? ` ${state.macUnits.length} Mac unit(s) kept, shown as faint outlines: edit them on the Mac.` : ''));
+}
+async function renderStore() {
+  const box = document.getElementById('storeList'), list = (await skAll()).sort((a, b) => tms(b.saved) - tms(a.saved));
+  const unsent = list.filter(r => !isSent(r));
+  const all = document.getElementById('storeSendAll');
+  all.hidden = !(unsent.length && downloads && (unsent.length === 1 || downloads.saveMany));
+  all.textContent = unsent.length > 1 ? `Send all unsent to iCloud (${unsent.length})…` : 'Send the unsent one to iCloud…';
+  if (!list.length) { box.innerHTML = '<p class="note">No sketches on this iPad yet. Save one, or open a file from iCloud.</p>'; return; }
+  box.innerHTML = list.map(r => {
+    const cur = r.id === state.sketchId, sentOk = isSent(r);
+    const nUnits = (r.data && Array.isArray(r.data.strokes)) ? r.data.strokes.length : 0;
+    return `<div class="skrow${cur ? ' cur' : ''}" data-id="${esc2(r.id)}"><div><b>${esc2(r.name)}</b>${cur ? ' <small style="display:inline">· open now</small>' : ''}
+      <small>Saved ${fmtWhen(r.saved)} · ${nUnits} unit(s) · ${sentOk ? 'sent to iCloud ' + fmtWhen(r.sent) : r.sent ? '<span class="uns">changed since sent ' + fmtWhen(r.sent) + '</span>' : '<span class="uns">not sent to iCloud yet</span>'}</small></div>
+      <div class="selrow">${cur ? '' : '<button class="btn primary" data-act="open">Open</button>'}<button class="btn" data-act="send">Send…</button><button class="btn warn" data-act="del">Remove</button></div></div>`;
+  }).join('');
+  box.querySelectorAll('.skrow').forEach(row => {
+    const r = list.find(x => x.id === row.dataset.id);
+    const ob = row.querySelector('[data-act=open]'); if (ob) ob.addEventListener('click', () => guardUnsaved('open another sketch', () => openRec(r)));
+    row.querySelector('[data-act=send]').addEventListener('click', () => (r.id === state.sketchId && isUnsaved()) ? sendCurrent() : sendRecs([r]));
+    row.querySelector('[data-act=del]').addEventListener('click', () => ask(`Remove “${r.name}” from this iPad? Copies already sent to iCloud stay there.` + (isSent(r) ? '' : ' This version has NOT been sent to iCloud, so this is the only copy of it.'), [
+      ['Remove', async () => { await skDel(r.id); if (curRec && curRec.id === r.id) { curRec = null; savedFP = null; updateSaveState(); } renderStore(); status(`Removed “${r.name}” from this iPad.`); }, 'warn'],
+      ['Cancel', null]]));
+  });
+}
+function openStore() { renderStore(); document.getElementById('storeBox').hidden = false; }
+function closeStore() { document.getElementById('storeBox').hidden = true; document.getElementById('storeAskBar').hidden = true; }
+document.getElementById('storeClose').addEventListener('click', closeStore);
+document.getElementById('storeBox').addEventListener('click', e => { if (e.target.id === 'storeBox') closeStore(); });
+document.getElementById('storeFiles').addEventListener('click', () => guardUnsaved('open a file', () => fileIn.click()));
+document.getElementById('storeSendAll').addEventListener('click', async () => {
+  if (isUnsaved() && curRec && curRec.id === state.sketchId) { if (!(await doSave())) return; }
+  const list = (await skAll()).filter(r => !isSent(r)); if (list.length) sendRecs(list);
+});
+document.addEventListener('keydown', e => {
+  if (document.getElementById('storeBox').hidden) return;
+  const tag = (e.target && e.target.tagName) || ''; if (/INPUT|TEXTAREA|SELECT/.test(tag)) return;
+  if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); closeStore(); return; }
+  if (!e.metaKey && !e.ctrlKey) e.stopImmediatePropagation();          // score shortcuts are off while the list is open
+}, true);
 document.getElementById('save').addEventListener('click', () => doSave());
 document.getElementById('copyBtn').addEventListener('click', () => {
   const ta = document.getElementById('copyText');
@@ -3489,14 +3619,44 @@ document.getElementById('copyBtn').addEventListener('click', () => {
 document.getElementById('copyClose').addEventListener('click', () => { document.getElementById('copyBox').hidden = true; });
 
 const fileIn = document.getElementById('file');
-document.getElementById('open').addEventListener('click', () => guardUnsaved('open another sketch', () => fileIn.click()));
+// v58: a file from iCloud is compared with the copy kept on this iPad; the newer one is offered first
+async function openFileChecked(d, fname) {
+  const list = await skAll();
+  const rec = list.find(r => d.id && r.id === d.id) || list.find(r => (r.name || '').trim().toLowerCase() === (d.name || '').trim().toLowerCase());
+  const tf = tms(d.modified), from = d.saved_on || (/Mac/.test(d.app || '') ? 'Mac' : '');
+  if (rec && tms(rec.saved) > tf + 1000) {
+    ask(`The copy of “${rec.name}” on this iPad (saved ${fmtWhen(rec.saved)}) is newer than this file (saved ${tf ? fmtWhen(d.modified) : 'with no date'}${from ? ' on the ' + from : ''}). Which do you want?`, [
+      ['Keep the iPad copy', () => openRec(rec), 'primary'],
+      ['Open the file', () => openFileData(d, fname, rec, true)],
+      ['Cancel', null]]);
+  } else openFileData(d, fname, rec, false);
+}
+async function openFileData(d, fname, rec, keepNewer) {
+  try { pushUndo(); if (!document.getElementById('noteBox').hidden) closeNote(); tapRec = null; fromJSON(d); }
+  catch (e) { undoStack.pop(); status(`${fname} isn't a Spectral Palette sketch. Choose a .json file saved from this sketchpad.`, true); return; }
+  if (rec) state.sketchId = rec.id;
+  if (rec && keepNewer) {     // nothing is lost: the newer iPad copy stays in the list under its own name
+    const copy = Object.assign({}, rec, { id: newSketchId(), name: await uniqueSketchName(`${rec.name} (iPad ${fmtWhen(rec.saved)})`, ''), sent: '', sentSaved: '' });
+    copy.data = Object.assign({}, rec.data, { id: copy.id, name: copy.name }); await skPut(copy);
+  }
+  if (!state.name) state.name = (fname || 'Sketch').replace(/\.json$/i, '');
+  state.name = await uniqueSketchName(state.name, state.sketchId);
+  syncControls(); changed(true);
+  const data = toJSON(), at = d.modified || data.modified;
+  curRec = { id: state.sketchId, name: state.name, saved: at, sent: at, sentSaved: at, data };   // it came from iCloud, so that version is there
+  try { await skPut(curRec); } catch (e) { }
+  markSaved(); closeStore();
+  status(`Opened ${fname}${d.saved_on || /Mac/.test(d.app || '') ? ' (saved on the ' + (d.saved_on || 'Mac') + ' ' + fmtWhen(d.modified) + ')' : ''}. It's kept on this iPad now.` + (keepNewer ? ' The newer iPad copy is still in the list.' : '') + ((state.macUnits && state.macUnits.length) ? ` ${state.macUnits.length} Mac unit(s) kept, shown as faint outlines: edit them on the Mac.` : ''));
+}
+document.getElementById('open').addEventListener('click', () => openStore());
 fileIn.addEventListener('change', () => {
   const f = fileIn.files && fileIn.files[0]; if (!f) return;
   const rd = new FileReader();
   rd.onload = () => {
     try { const d0 = JSON.parse(rd.result); if (d0 && d0.format === 'lh-spectral-library') { importLib(d0); fileIn.value = ''; return; } } catch (e) { }
-    try { pushUndo(); if (!document.getElementById('noteBox').hidden) closeNote(); tapRec = null; fromJSON(JSON.parse(rd.result)); syncControls(); changed(true); markSaved(); status(`Opened ${f.name}.` + ((state.macUnits && state.macUnits.length) ? ` ${state.macUnits.length} Mac unit(s) kept, shown as faint outlines: edit them on the Mac.` : '')); }
-    catch (e) { undoStack.pop(); status(`${f.name} isn't a Spectral Palette sketch. Choose a .json file saved from this sketchpad.`, true); }
+    let d = null; try { d = JSON.parse(rd.result); } catch (e) { d = null; }
+    if (!d || d.format !== 'lh-spectral-palette-sketch' || !Array.isArray(d.strokes)) { status(`${f.name} isn't a Spectral Palette sketch. Choose a .json file saved from this sketchpad.`, true); fileIn.value = ''; return; }
+    openFileChecked(d, f.name);
     fileIn.value = '';
   };
   rd.readAsText(f);
@@ -3504,7 +3664,7 @@ fileIn.addEventListener('change', () => {
 
 function doNew() {
   state.mute = {}; state.solo = {}; setLayers(defaultLayers()); state.layer = LAYERS[0].id;
-  pushUndo(); if (!document.getElementById('noteBox').hidden) closeNote(); state.strokes = []; state.annotations = []; state.scoreNotes = ''; state.scoreNotesAt = ''; state.markers = []; state.regions = []; mrSel = null; tapRec = null; state.macUnits = []; state.macLayers = []; state.macField = null; state.macExtra = {}; state.selected = null; state.name = ''; state.created = new Date().toISOString();
+  pushUndo(); if (!document.getElementById('noteBox').hidden) closeNote(); state.strokes = []; state.annotations = []; state.scoreNotes = ''; state.scoreNotesAt = ''; state.markers = []; state.regions = []; mrSel = null; tapRec = null; state.macUnits = []; state.macLayers = []; state.macField = null; state.macExtra = {}; state.selected = null; state.name = ''; state.created = new Date().toISOString(); state.sketchId = newSketchId(); curRec = null;
   syncControls(); changed(true); markSaved(); status('New sketch. Undo brings the old drawing back.');
 }
 document.getElementById('new').addEventListener('click', () => {
@@ -6120,7 +6280,7 @@ resize();
 </script>
 
 <script>
-/* Standalone build v57-20261107-1308-6b790e: keep the app on the iPad so it opens with no internet. */
+/* Standalone build v58-20261107-1448-a4dea6: keep the app on the iPad so it opens with no internet. */
 if ('serviceWorker' in navigator) window.addEventListener('load', () => {
   navigator.serviceWorker.register('sw.js').catch(() => { });
 });
