@@ -480,7 +480,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
     <label>Name <input id="mrName" type="text" autocomplete="off" style="width: 14em" aria-label="Name"></label>
     <span class="selrow"><button class="btn primary" id="mrOk">Done</button><button class="btn warn" id="mrDel">Delete</button><button class="btn" id="mrCancel">Cancel</button></span></div>
   <div class="askbar" id="askBar" hidden><span id="askText"></span><span class="selrow" id="askBtns"></span></div>
-  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v63</span></div>
+  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v64</span></div>
 </div>
 
 <div class="laypop" id="layerDots" role="menu" aria-label="Layer to draw on" hidden></div>
@@ -4491,6 +4491,10 @@ function buildSource(v, f0, i, mods) {
       W[j] = clamp(g('note_width_pct', j), 0, 100) / 100 * Math.PI / 4;
     }
     if (mv.bandwidth_pct || mv.bandwidth_floor_hz) for (const q of qs) modCurve(q, n, j => f / B[j], t0, dur);
+    if (mv.tune_cents || mv.pitch_drift_cents) {       // v64: tune and pitch-drift depth, on the bands' detune (cents)
+      const w = wander(n, dur / Math.max(n - 1, 1), 1, P.drift_rate_hz, false);
+      for (const d of detune) modCurve(d, n, j => (g('tune_cents', j) - (P.tune_cents || 0)) + w[j] * g('pitch_drift_cents', j), t0, dur);
+    }
     modCurve(mg.gain, n, j => N[j] * Math.cos(W[j]), t0, dur);
     if (sp) { modCurve(sp.gain, n, j => N[j] * Math.sin(W[j]), t0, dur); modCurve(sn.gain, n, j => -N[j] * Math.sin(W[j]), t0, dur); }
   };
@@ -4525,19 +4529,27 @@ const MODAL_TAB = [
   [0.5, 1, 1.183, 1.506, 2, 2.514, 2.662, 3.011, 4.166, 4.336, 5.433, 5.990, 6.565, 8.033, 9.414, 10.72],
   [1, 2.320, 4.250, 6.630, 9.380, 12.50, 16.00, 19.90, 24.20, 28.90, 34.00, 39.50, 45.40, 51.70, 58.40, 65.50]];
 // the modes of one strike (LH_Modal setup_voice), velocity 0.8 as a mid strike
+function modalRat(m, inh, dc) {             // v64: a mode's ratio for other inharmonicity / detune values (as the plug-in)
+  let r = m.set === 6 ? (m.k + 1) * (1 + 0.01 * m.k * (0.6 + inh)) : m.base;
+  if (inh !== 0 && m.set !== 6) r = Math.pow(r, 1 + inh * 0.08);
+  return r * Math.pow(2, m.jit * dc / 1200);
+}
 function modalModes(P, vel) {
   const set = Math.max(0, MODAL_SETS.findIndex(o => o[0] === P.mode_set)), nm = clamp(Math.round(P.modes), 1, 16);
   const bright = Math.min(1, P.brightness + vel * 0.25), hard = P.hardness, out = [];
   for (let k = 0; k < nm; k++) {
     let rat = set <= 5 ? MODAL_TAB[set][k] : set === 6 ? (k + 1) * (1 + 0.01 * k * (0.6 + P.inharm)) : (k + 1) * (1 + (Math.random() - 0.5) * 0.35);
+    const base = rat, jit = (Math.random() - 0.5) * 2;      // v64: kept so a lane can re-tune the mode
     if (P.inharm !== 0 && set !== 6) rat = Math.pow(rat, 1 + P.inharm * 0.08);
-    rat *= Math.pow(2, (Math.random() - 0.5) * 2 * P.detune_cents / 1200);
+    rat *= Math.pow(2, jit * P.detune_cents / 1200);
     const lv = Math.pow(Math.max(1, rat), -(0.4 + (1 - bright) * 1.6)) * Math.pow(Math.max(1, rat), (hard - 0.5) * 0.8);
     const t60 = Math.max(0.01, P.t60_s * Math.pow(Math.max(0.25, rat), -P.decay_tilt));
-    out.push({ rat, lv, t60, trel: Math.min(t60, P.damp_s), pan: 0.5 + P.spread * 0.5 * Math.sin(k * 2.39996) });
+    out.push({ rat, lv, t60, trel: Math.min(t60, P.damp_s), pan: 0.5 + P.spread * 0.5 * Math.sin(k * 2.39996), k, set, base, jit });
   }
   return out;
 }
+// v64: weight of wave b (of 5, at feedback hi·b/4) for feedback beta; a feedback lane crossfades the 5 phase-locked modulators
+const fbW = (beta, b, hi) => Math.max(0, 1 - Math.abs(clamp(beta, 0, hi) / hi * 4 - b));
 // the FM modulator with self-feedback y = sin(φ + β·y), as its phase derivative (FM into the carrier's frequency = PM)
 const fbWaves = new Map();
 function fmModWave(beta) {
@@ -4569,18 +4581,24 @@ const ENGINES = {
         if (f0 * ratio >= nyq) break;
         const o = ac.createOscillator(), gn = ac.createGain(), a = Math.pow(P.harm_decay, k);
         o.frequency.value = f0 * ratio; gn.gain.value = a; o.connect(gn); gn.connect(sum);
-        starts.push(o); fp.push([o.frequency, ratio]); parts.push({ gn, a, k, seed: Math.random() * 2 * Math.PI });
+        starts.push(o); fp.push([o.frequency, ratio]); parts.push({ o, gn, a, k, r0: ratio, seed: Math.random() * 2 * Math.PI });
       }
       return { outL, outR, starts, fp, detune: [], pan: 0,
         mods(mv, n, t0, dur, el) {           // v63: harmonic decay (with the shimmer on top) and master amplitude over time
           if (mv.master_amp) { const g0 = 0.8 / Math.max(1, Math.sqrt(N)) * ENG_K * Math.SQRT2;
             modCurve(outL.gain, n, j => g0 * mv.master_amp[j] * (1 - p * 0.3), t0, dur);
             modCurve(outR.gain, n, j => g0 * mv.master_amp[j] * (0.7 + p * 0.3), t0, dur); }
-          if (mv.harm_decay) { const dtj = dur / Math.max(n - 1, 1);
-            for (const q of parts) modCurve(q.gn.gain, n, j => Math.pow(mv.harm_decay[j], q.k) * (P.shimmer > 0 ? Math.max(0, 1 + P.shimmer * Math.sin(q.seed + (el + j * dtj) * (0.1 + q.k * 0.03))) : 1), t0, dur); }
+          const gA = (key, j) => mv[key] ? mv[key][j] : P[key];
+          if (mv.harm_decay || mv.shimmer) { const dtj = dur / Math.max(n - 1, 1);
+            for (const q of parts) modCurve(q.gn.gain, n, j => { const sh = gA('shimmer', j);
+              return Math.pow(gA('harm_decay', j), q.k) * (sh > 0 ? Math.max(0, 1 + sh * Math.sin(q.seed + (el + j * dtj) * (0.1 + q.k * 0.03))) : 1); }, t0, dur); }
+          if (mv.fund_ratio || mv.inharm || mv.detune_cents)      // v64: each partial's ratio over time, on its detune (cents)
+            for (const q of parts) modCurve(q.o.detune, n, j => { const k = q.k;
+              const r = (k + 1) * (1 + gA('inharm', j) * k * k * 0.001) * Math.pow(2, gA('detune_cents', j) * (k - N * 0.5) / Math.max(1, N) / 1200) * Math.max(0.01, gA('fund_ratio', j));
+              return 1200 * Math.log2(Math.max(0.0001, r) / q.r0); }, t0, dur);
         },
         at(t0, hold, total, el, mv) {        // shimmer: each partial's level drifts slowly (0.1 + 0.03k rad/s)
-          if (!(P.shimmer > 0) || (mv && mv.harm_decay)) return;
+          if (!(P.shimmer > 0) || (mv && (mv.harm_decay || mv.shimmer))) return;
           const nC = Math.max(2, Math.min(800, Math.ceil(total * 4))), dtc = total / (nC - 1);
           for (const q of parts) {
             const c = new Float32Array(nC);
@@ -4598,37 +4616,47 @@ const ENGINES = {
     source(P, f0, i) {
       const cr = P.carrier_ratio, mr = P.mod_ratio, starts = [], fp = [];
       const car = ac.createOscillator(); car.frequency.value = f0 * cr; fp.push([car.frequency, cr]);
-      const mod = ac.createOscillator(); mod.setPeriodicWave(fmModWave(clamp(P.feedback, 0, 0.99))); mod.frequency.value = f0 * mr; fp.push([mod.frequency, mr]);
+      const mkMod = b => { const o = ac.createOscillator(); o.setPeriodicWave(fmModWave(clamp(b, 0, 0.99))); o.frequency.value = f0 * mr; fp.push([o.frequency, mr]); return o; };
+      const fbBank = [], modOscs = [], mod = ctlMod(P, 'feedback') ? ac.createGain() : mkMod(P.feedback);   // v64: a feedback lane fades 5 modulators
+      if (fbBank && mod instanceof GainNode) for (let b = 0; b < 5; b++) { const o = mkMod(0.99 * b / 4), gg = ac.createGain(); gg.gain.value = fbW(P.feedback, b, 0.99); o.connect(gg); gg.connect(mod); modOscs.push(o); fbBank.push(gg); }
+      else modOscs.push(mod);
       const dev = ac.createGain(); dev.gain.value = f0 * mr; fp.push([dev.gain, mr]);     // Hz per unit of index, follows the pitch
       const idx = ac.createGain(); idx.gain.value = Math.max(0, P.fm_index);
       mod.connect(dev); dev.connect(idx); idx.connect(car.frequency);
       const out = ac.createGain(), gC = ac.createGain(); gC.gain.value = 1 - Math.abs(P.sub_mix); car.connect(gC); gC.connect(out);
-      starts.push(car, mod);
+      starts.push(car, ...modOscs);
       let gSref = null;
       if (P.sub_mix !== 0 || ctlMod(P, 'sub_mix')) { const sub = ac.createOscillator(), gS = ac.createGain(); sub.frequency.value = f0 * 0.5; fp.push([sub.frequency, 0.5]); gS.gain.value = P.sub_mix; sub.connect(gS); gS.connect(out); starts.push(sub); gSref = gS; }
       let wob = null;
-      if (P.ratio_drift > 0) { wob = ac.createConstantSource(); wob.offset.value = 0; const wg = ac.createGain(); wg.gain.value = f0; wob.connect(wg); wg.connect(mod.frequency); starts.push(wob); }
+      if (P.ratio_drift > 0 || ctlMod(P, 'ratio_drift')) { wob = ac.createConstantSource(); wob.offset.value = 0; const wg = ac.createGain(); wg.gain.value = f0; wob.connect(wg); for (const o of modOscs) wg.connect(o.frequency); starts.push(wob); }
       const lvl = ac.createGain(); lvl.gain.value = P.master_amp * 0.8 * ENG_K; out.connect(lvl);
       const gSub = gSref;
       const pan = clamp(0.5 + (midiOf(f0) - 60) * 0.012, 0.1, 0.9);
       return { outL: lvl, outR: lvl, starts, fp, detune: [], pan: (pan - 0.5) * 2,
         mods(mv, n, t0, dur, el) {           // v63: index (with its drift on top), sub mix and level over time
           const dtj = dur / Math.max(n - 1, 1);
-          if (mv.fm_index) modCurve(idx.gain, n, j => { const t = el + j * dtj, mra = mr + P.ratio_drift * Math.sin(t * 0.2 + i * 1.7);
-            return Math.max(0, mv.fm_index[j] + P.index_drift * 0.01 * Math.sin(t * 0.15 + i * 2.3)) * (mra / mr); }, t0, dur);
+          const gF = (key, j) => mv[key] ? mv[key][j] : P[key];
+          // v64: the index follows index, drift and both ratios (Web Audio FM deviation is in Hz, the plug-in's PM index is not)
+          if (mv.fm_index || mv.index_drift || mv.ratio_drift || mv.mod_ratio || mv.carrier_ratio) modCurve(idx.gain, n, j => {
+            const t = el + j * dtj, mra = gF('mod_ratio', j) + gF('ratio_drift', j) * Math.sin(t * 0.2 + i * 1.7);
+            return Math.max(0, gF('fm_index', j) + gF('index_drift', j) * 0.01 * Math.sin(t * 0.15 + i * 2.3)) * (mra / mr) * (cr / gF('carrier_ratio', j)); }, t0, dur);
+          if (wob && (mv.ratio_drift || mv.mod_ratio)) modCurve(wob.offset, n, j => gF('ratio_drift', j) * Math.sin((el + j * dtj) * 0.2 + i * 1.7) * (mr / gF('mod_ratio', j)), t0, dur);
+          if (mv.carrier_ratio) modCurve(car.detune, n, j => 1200 * Math.log2(gF('carrier_ratio', j) / cr), t0, dur);
+          if (mv.mod_ratio) for (const o of modOscs) modCurve(o.detune, n, j => 1200 * Math.log2(gF('mod_ratio', j) / mr), t0, dur);
+          if (mv.feedback) fbBank.forEach((gg, b) => modCurve(gg.gain, n, j => fbW(mv.feedback[j], b, 0.99), t0, dur));
           if (mv.sub_mix) { modCurve(gC.gain, n, j => 1 - Math.abs(mv.sub_mix[j]), t0, dur); if (gSub) modCurve(gSub.gain, n, j => mv.sub_mix[j], t0, dur); }
           if (mv.master_amp) modCurve(lvl.gain, n, j => mv.master_amp[j] * 0.8 * ENG_K, t0, dur);
         },
         at(t0, hold, total, el, mv) {        // slow index drift and modulator-ratio wobble, as the plug-in (voice i sets the phase)
           if (!(P.index_drift !== 0 || P.ratio_drift > 0)) return;
-          const own = mv && mv.fm_index;
+          const own = mv && (mv.fm_index || mv.index_drift || mv.ratio_drift || mv.mod_ratio || mv.carrier_ratio), ownW = mv && (mv.ratio_drift || mv.mod_ratio);
           const nC = Math.max(2, Math.min(2000, Math.ceil(total * 20))), dtc = total / (nC - 1), ci = new Float32Array(nC), cw = new Float32Array(nC);
           for (let j = 0; j < nC; j++) {
             const t = el + j * dtc, mra = mr + P.ratio_drift * Math.sin(t * 0.2 + i * 1.7);
             ci[j] = Math.max(0, P.fm_index + P.index_drift * 0.01 * Math.sin(t * 0.15 + i * 2.3)) * (mra / mr);
             cw[j] = P.ratio_drift * Math.sin(t * 0.2 + i * 1.7);
           }
-          try { if (!own) idx.gain.setValueCurveAtTime(ci, t0, total); if (wob) wob.offset.setValueCurveAtTime(cw, t0, total); } catch (e) { }
+          try { if (!own) idx.gain.setValueCurveAtTime(ci, t0, total); if (wob && !ownW) wob.offset.setValueCurveAtTime(cw, t0, total); } catch (e) { }
         } };
     } },
   LH_Modal: {
@@ -4645,12 +4673,14 @@ const ENGINES = {
         const o = ac.createOscillator(), gn = ac.createGain(), l = ac.createGain(), r = ac.createGain();
         o.frequency.value = f0 * m.rat; gn.gain.value = 0; o.connect(gn);
         l.gain.value = 1 - m.pan; r.gain.value = m.pan; gn.connect(l); gn.connect(r); l.connect(outL); r.connect(outR);
-        starts.push(o); fp.push([o.frequency, m.rat]); live.push({ gn, A: m.lv * g, tau: m.t60 / 6.907755, taur: m.trel / 6.907755 });
+        starts.push(o); fp.push([o.frequency, m.rat]); live.push({ o, m, gn, A: m.lv * g, tau: m.t60 / 6.907755, taur: m.trel / 6.907755 });
       }
       let t0s = 0;
       return { outL, outR, starts, fp, detune: [], pan: 0,
         mods(mv, n, t0, dur) {               // v63: output gain over time (relative to the preset's, which is in the strike levels)
           if (mv.output_gain_db) for (const o of [outL, outR]) modCurve(o.gain, n, j => Math.pow(10, (mv.output_gain_db[j] - P.output_gain_db) / 20), t0, dur);
+          if (mv.inharm || mv.detune_cents) { const gM = (key, j) => mv[key] ? mv[key][j] : P[key];
+            for (const q of live) modCurve(q.o.detune, n, j => 1200 * Math.log2(modalRat(q.m, gM('inharm', j), gM('detune_cents', j)) / q.m.rat), t0, dur); }
         },
         at(t0, hold, total, el) {            // the strike: every mode starts at its level and rings down (sine from zero phase)
           t0s = t0 - el;
@@ -4713,21 +4743,25 @@ function pipeSource(P, f0, i, organ) {
   const hgs = [], rgs = [];
   const nyq = ac.sampleRate * 0.45;
   const osc = (mult, type) => { const o = ac.createOscillator(); if (type) o.type = type; o.frequency.value = Math.min(f0 * mult, nyq); fp.push([o.frequency, mult]); starts.push(o); dets.push(o.detune); return o; };
-  const side = (cm, mm, hm) => {             // one channel: carrier ratio, modulator ratio, halo modulator ratio
+  const sides = [], fbOn = ctlMod(P, 'feedback');
+  const side = (cm, mm, hm, right) => {      // one channel: carrier ratio, modulator ratio, halo modulator ratio
     const sum = ac.createGain();
-    const car = osc(cm), mod = osc(mm); mod.setPeriodicWave(fmModWave(fb));
+    const car = osc(cm), sd = { cars: [car], mods: [], fb: [], mm, right, ig: null }; sides.push(sd);
+    let mod;
+    if (fbOn) { mod = ac.createGain(); for (let b = 0; b < 5; b++) { const o = osc(mm), gg = ac.createGain(); o.setPeriodicWave(fmModWave(0.5 * b / 4)); gg.gain.value = fbW(fb, b, 0.5); o.connect(gg); gg.connect(mod); sd.mods.push(o); sd.fb.push(gg); } }
+    else { mod = osc(mm); mod.setPeriodicWave(fmModWave(fb)); sd.mods.push(mod); }
     const dev = ac.createGain(); dev.gain.value = f0 * mm; fp.push([dev.gain, mm]);
-    const ig = ac.createGain(); ig.gain.value = Math.max(0, P.fm_index); idxGains.push(ig);
+    const ig = ac.createGain(); ig.gain.value = Math.max(0, P.fm_index); idxGains.push(ig); sd.ig = ig;
     mod.connect(dev); dev.connect(ig); ig.connect(car.frequency); car.connect(sum);
     if (halo > 0.0005 || ctlMod(P, 'halo_db')) {
-      const hc = osc(cm), hmod = osc(hm, 'sine'), hd = ac.createGain(), hg = ac.createGain();
+      const hc = osc(cm), hmod = osc(hm, 'sine'), hd = ac.createGain(), hg = ac.createGain(); sd.cars.push(hc);
       hd.gain.value = 1.2 * f0 * hm; fp.push([hd.gain, 1.2 * hm]); hmod.connect(hd); hd.connect(hc.frequency);
       hg.gain.value = halo; hc.connect(hg); hg.connect(sum); hgs.push(hg);
     }
-    for (const [m, g, k] of ranks) { const o = osc(cm * m, 'sine'), gg = ac.createGain(); gg.gain.value = g; o.connect(gg); gg.connect(sum); rgs.push([gg, k]); }
+    for (const [m, g, k] of ranks) { const o = osc(cm * m, 'sine'), gg = ac.createGain(); sd.cars.push(o); gg.gain.value = g; o.connect(gg); gg.connect(sum); rgs.push([gg, k]); }
     return sum;
   };
-  const sL = side(1, mr, 3.5), sR = (cel !== 1 || P.stereo_detune > 0) ? side(cel, mr + P.stereo_detune, 3.507) : null;
+  const sL = side(1, mr, 3.5, false), sR = (cel !== 1 || P.stereo_detune > 0 || ctlMod(P, 'stereo_detune') || ctlMod(P, 'celeste_cents')) ? side(cel, mr + P.stereo_detune, 3.507, true) : null;
   // level: K_FM·√2 (organ only), pan √½, K_OUT, output gain; the iPad level is the plug-in's × 2√2 (ENG_K); 0.8 = a mid velocity
   const lvl = 0.12 * Math.SQRT2 * Math.SQRT1_2 * 0.355 * Math.pow(10, P.output_gain_db / 20) * rkNorm * ENG_K * 0.8;
   const trem = ac.createGain(); trem.gain.value = 1;
@@ -4748,7 +4782,12 @@ function pipeSource(P, f0, i, organ) {
   return { outL, outR, starts, fp, detune: [], pan: 0,
     mods(mv, n, t0, dur, el) {               // v63: index (with its wobble on top), halo, stops, low-pass and output gain over time
       const dtj = dur / Math.max(n - 1, 1), g = (k, j) => mv[k] ? mv[k][j] : P[k];
-      if (mv.fm_index) for (const ig of idxGains) modCurve(ig.gain, n, j => Math.max(0, mv.fm_index[j]) * (1 + 0.33 * Math.sin(wph + 2 * Math.PI * wob * (el + j * dtj))), t0, dur);
+      const mmOf = (sd, j) => g('mod_ratio', j) + (sd.right ? g('stereo_detune', j) : 0);
+      // v64: the index also follows the modulator ratio (Web Audio FM deviation is in Hz, the plug-in's PM index is not)
+      if (mv.fm_index || mv.mod_ratio || mv.stereo_detune) for (const sd of sides) modCurve(sd.ig.gain, n, j => Math.max(0, g('fm_index', j)) * (1 + 0.33 * Math.sin(wph + 2 * Math.PI * wob * (el + j * dtj))) * (mmOf(sd, j) / sd.mm), t0, dur);
+      if (mv.mod_ratio || mv.stereo_detune) for (const sd of sides) for (const o of sd.mods) modCurve(o.detune, n, j => 1200 * Math.log2(mmOf(sd, j) / sd.mm), t0, dur);
+      if (mv.celeste_cents && organ) for (const sd of sides) if (sd.right) for (const o of sd.cars) modCurve(o.detune, n, j => mv.celeste_cents[j] - (P.celeste_cents || 0), t0, dur);
+      if (mv.feedback) for (const sd of sides) sd.fb.forEach((gg, b) => modCurve(gg.gain, n, j => fbW(mv.feedback[j], b, 0.5), t0, dur));
       if (mv.halo_db) for (const hg of hgs) modCurve(hg.gain, n, j => Math.pow(10, mv.halo_db[j] / 20), t0, dur);
       for (const [gg, k] of rgs) if (mv[k]) modCurve(gg.gain, n, j => mv[k][j] / 100, t0, dur);
       if (mv.lowpass_hz) for (const b of lps) modCurve(b.frequency, n, j => Math.min(mv.lowpass_hz[j], ac.sampleRate * 0.45), t0, dur);
@@ -4758,7 +4797,7 @@ function pipeSource(P, f0, i, organ) {
       }
     },
     at(t0, hold, total, el, mv) {
-      if (P.fm_index > 0 && !(mv && mv.fm_index)) {     // slow index wobble, ±33 %, per note
+      if (P.fm_index > 0 && !(mv && (mv.fm_index || mv.mod_ratio || mv.stereo_detune))) {     // slow index wobble, ±33 %, per note
         const nC = Math.max(2, Math.min(2000, Math.ceil(total * 10))), dtc = total / (nC - 1), c = new Float32Array(nC);
         for (let j = 0; j < nC; j++) c[j] = P.fm_index * (1 + 0.33 * Math.sin(wph + 2 * Math.PI * wob * (el + j * dtc)));
         try { for (const g of idxGains) g.gain.setValueCurveAtTime(c, t0, total); } catch (e) { }
@@ -4787,14 +4826,14 @@ const ENG_V62 = {
     holdLen: P => Math.min(60, 7 * Math.max(P.attack_ms, 0) / 1000),
     cost: P => clamp(Math.round(P.unison), 1, 4) + 1,
     source(P, f0, i) {
-      const N = clamp(Math.round(P.unison), 1, 4), starts = [], fp = [], mix = ac.createGain(), sr = ac.sampleRate;
+      const N = clamp(Math.round(P.unison), 1, 4), starts = [], fp = [], uo = [], mix = ac.createGain(), sr = ac.sampleRate;
       const oscG = ac.createGain(); oscG.gain.value = (1 - P.noise_mix) / Math.sqrt(N); oscG.connect(mix);
       for (let u = 0; u < N; u++) {
         const cents = N > 1 ? (u - (N - 1) / 2) * P.unison_detune / (N - 1) : 0, r = Math.pow(2, cents / 1200);
         let src;
         if (P.waveform === 'noise') { src = ac.createBufferSource(); src.buffer = getPink(); src.loop = true; src._off = Math.random() * 3.9; }
         else {
-          src = ac.createOscillator(); src.frequency.value = Math.min(f0 * r, sr * 0.45); fp.push([src.frequency, r]);
+          src = ac.createOscillator(); src.frequency.value = Math.min(f0 * r, sr * 0.45); fp.push([src.frequency, r]); uo.push([src, u]);
           if (P.waveform === 'square') { if (Math.abs(P.pulse_width) < 0.005) src.type = 'square'; else src.setPeriodicWave(pulseWave(0.5 + P.pulse_width * 0.4)); }
           else src.type = P.waveform === 'triangle' ? 'triangle' : 'sawtooth';
         }
@@ -4822,6 +4861,7 @@ const ENG_V62 = {
       return { outL, outR, starts, fp, detune: [], pan: 0,
         mods(mv, n, t0, dur) {               // v63: cutoff (with key tracking), resonance, noise mix and level over time
           if (mv.cutoff_hz) modCurve(flt.frequency, n, j => Math.min(mv.cutoff_hz[j] * ktf, sr * 0.45), t0, dur);
+          if (mv.unison_detune && N > 1) for (const [o, u] of uo) modCurve(o.detune, n, j => (u - (N - 1) / 2) * (mv.unison_detune[j] - P.unison_detune) / (N - 1), t0, dur);   // v64
           if (mv.resonance) { modCurve(flt.Q, n, j => qOf(mv.resonance[j]), t0, dur); if (bgRef) modCurve(bgRef.gain, n, j => 1 / Math.max(0.001, 2 * (1 - mv.resonance[j])), t0, dur); }
           if (mv.noise_mix) { modCurve(oscG.gain, n, j => (1 - mv.noise_mix[j]) / Math.sqrt(N), t0, dur); if (ngRef) modCurve(ngRef.gain, n, j => mv.noise_mix[j] * Math.sqrt(3), t0, dur); }
           if (mv.master_amp) { modCurve(outL.gain, n, j => mv.master_amp[j] * 0.8 * ENG_K * (1 - np) * 2 * Math.SQRT1_2, t0, dur); modCurve(outR.gain, n, j => mv.master_amp[j] * 0.8 * ENG_K * np * 2 * Math.SQRT1_2, t0, dur); }
@@ -5487,13 +5527,14 @@ const panMode = () => state.laneMode === 'pan';
 // ---- v63: modulation envelopes, up to 3 per unit; each one moves one control of the layer's sound across the unit
 const MOD_MAX = 3;
 const MOD_KEYS = {
-  LH_Breath: ['bandwidth_pct', 'bandwidth_floor_hz', 'note_width_pct', 'output_gain_db'],
-  LH_Additive: ['harm_decay', 'master_amp'],
-  LH_FM: ['fm_index', 'sub_mix', 'master_amp'],
-  LH_Modal: ['output_gain_db'],
-  LH_Subtractive: ['cutoff_hz', 'resonance', 'noise_mix', 'master_amp'],
-  LH_Organ: ['fm_index', 'halo_db', 'stop16', 'stop4', 'stop3', 'stop2', 'stop1', 'lowpass_hz', 'output_gain_db'],
-  LH_FM_Chord: ['fm_index', 'halo_db', 'lowpass_hz', 'output_gain_db'],
+  // v64: + ratios, tuning, drift, shimmer and feedback (continuous controls only: counts and note-start settings stay out)
+  LH_Breath: ['bandwidth_pct', 'bandwidth_floor_hz', 'note_width_pct', 'output_gain_db', 'tune_cents', 'pitch_drift_cents'],
+  LH_Additive: ['harm_decay', 'master_amp', 'fund_ratio', 'inharm', 'detune_cents', 'shimmer'],
+  LH_FM: ['fm_index', 'sub_mix', 'master_amp', 'carrier_ratio', 'mod_ratio', 'feedback', 'index_drift', 'ratio_drift'],
+  LH_Modal: ['output_gain_db', 'inharm', 'detune_cents'],
+  LH_Subtractive: ['cutoff_hz', 'resonance', 'noise_mix', 'master_amp', 'unison_detune'],
+  LH_Organ: ['fm_index', 'halo_db', 'stop16', 'stop4', 'stop3', 'stop2', 'stop1', 'lowpass_hz', 'output_gain_db', 'mod_ratio', 'stereo_detune', 'feedback', 'celeste_cents'],
+  LH_FM_Chord: ['fm_index', 'halo_db', 'lowpass_hz', 'output_gain_db', 'mod_ratio', 'stereo_detune', 'feedback'],
 };
 const layerSoundOf = s => soundById(state.layerSound[s.layer]);
 const modDef = (engine, k) => (MOD_KEYS[engine] || []).includes(k) ? (ENGINE_DEFS[engine] || []).find(d => d.k === k && d.min != null) || null : null;
@@ -5511,7 +5552,7 @@ function modFmt(d, v) {
   if (u === '%' || /^%/.test(u)) return v.toFixed(v < 10 ? 1 : 0) + (u === '%' ? '%' : '');
   return Math.abs(v) < 1 ? v.toFixed(3) : Math.abs(v) < 10 ? v.toFixed(2) : v.toFixed(1);
 }
-const modUnit = d => d.u === 'Hz' ? 'Hz' : d.u === 'dB' ? 'dB' : d.u === '% of pitch' ? '% of pitch' : '';
+const modUnit = d => ['Hz', 'dB', '% of pitch', 'cents', '× pitch'].includes(d.u) ? d.u : '';
 function modFlat(s, k) {
   const pr = layerSoundOf(s), d = pr && modDef(pr.engine, k);
   const v = d ? +modNorm(d, fullParams(pr)[k]).toFixed(5) : 0.5;
@@ -5708,7 +5749,10 @@ function renderShapes() {
     b.addEventListener('click', () => {
       const s2 = selUnit(); if (!s2) return;
       const sh = all[+b.dataset.shape];
-      pushUndo(); setTargetEnv(s2, sh.pts.map(p => p.slice()));
+      pushUndo();
+      // v64: Flat on the Pan lane is centre, on a modulation lane the preset's value (the top there is right / the maximum)
+      const ml2 = modLane(s2), flatHere = +b.dataset.shape === 0 && valMode();
+      setTargetEnv(s2, flatHere && panMode() ? PAN_FLAT.map(p => p.slice()) : flatHere && ml2 ? modFlat(s2, ml2.k) : sh.pts.map(p => p.slice()));
       // saved shapes bring their LFO (or clear it); built-ins leave the LFO alone
       if (+b.dataset.shape >= SHAPES.length && !valMode()) { if (sh.lfo) s2.lfo = JSON.parse(JSON.stringify(sh.lfo)); else delete s2.lfo; }
       changed(false); renderLaneHeader();
@@ -6732,9 +6776,23 @@ resize();
 </script>
 
 <script>
-/* Standalone build v63-20261107-1649-1b93d0: keep the app on the iPad so it opens with no internet. */
+/* Standalone build v64-20261107-1930-4d11c3: keep the app on the iPad so it opens with no internet. */
 if ('serviceWorker' in navigator) window.addEventListener('load', () => {
-  navigator.serviceWorker.register('sw.js').catch(() => { });
+  // an update downloads in the background; when it takes over, say so and offer a reload (the open sketch is kept on the iPad)
+  const had = !!navigator.serviceWorker.controller;
+  let shown = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!had || shown) return; shown = true;
+    const bar = document.createElement('div');
+    bar.setAttribute('role', 'status');
+    bar.style.cssText = 'position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:9999;display:flex;gap:10px;align-items:center;padding:10px 14px;border-radius:10px;background:#3b2a40;color:#fff;font:14px/1.3 -apple-system,system-ui,sans-serif;box-shadow:0 4px 18px rgba(0,0,0,.25);max-width:calc(100vw - 32px)';
+    bar.innerHTML = '<span>A new version of the app has downloaded. Save your sketch, then reload to use it.</span>';
+    const mk = (t, fn, strong) => { const x = document.createElement('button'); x.textContent = t; x.style.cssText = 'min-height:34px;padding:0 12px;border-radius:7px;border:1px solid #fff6;background:' + (strong ? '#fff;color:#3b2a40' : 'transparent;color:#fff') + ';font:inherit;font-weight:600'; x.onclick = fn; bar.appendChild(x); };
+    mk('Reload now', () => location.reload(), true);
+    mk('Later', () => bar.remove());
+    document.body.appendChild(bar);
+  });
+  navigator.serviceWorker.register('sw.js').then(r => r.update().catch(() => { })).catch(() => { });
 });
 </script>
 </body>
