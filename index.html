@@ -233,7 +233,11 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
 .silbox input { width: 7.5em; font: inherit; font-variant-numeric: tabular-nums; }
 .askbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 8px 10px; border: 1px solid #c98a90; border-radius: 9px; background: #fbf1ef; font-size: 13px; }
 .askbar span { flex: 1 1 260px; min-width: 0; }
-.status { min-height: 18px; font-size: 12.5px; color: var(--teal); }
+.statusrow { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
+.curname { flex: 0 1 auto; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; font-weight: 600; color: var(--ink, #2b2620); cursor: pointer; }
+.curname small { font-weight: 400; color: var(--muted); }
+.statusrow .ver { margin-left: auto; font-size: 11px; color: var(--muted); white-space: nowrap; }
+.status { flex: 1 1 auto; min-width: 0; min-height: 18px; font-size: 12.5px; color: var(--teal); }
 .status.err { color: #a8323e; }
 
 .overlay[hidden] { display: none; }
@@ -466,7 +470,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
     <label>Name <input id="mrName" type="text" autocomplete="off" style="width: 14em" aria-label="Name"></label>
     <span class="selrow"><button class="btn primary" id="mrOk">Done</button><button class="btn warn" id="mrDel">Delete</button><button class="btn" id="mrCancel">Cancel</button></span></div>
   <div class="askbar" id="askBar" hidden><span id="askText"></span><span class="selrow" id="askBtns"></span></div>
-  <div class="status" id="status" role="status"></div>
+  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v59</span></div>
 </div>
 
 <div class="laypop" id="layerDots" role="menu" aria-label="Layer to draw on" hidden></div>
@@ -3392,12 +3396,22 @@ function markSaved() {
   try { localStorage.setItem(SAVED_KEY, savedFP); } catch (e) { }
   updateSaveState(new Date());
 }
+// v59: the open sketch's name is always shown in the bottom strip
+function renderCurName() {
+  const el = document.getElementById('curName'); if (!el) return;
+  const nm = (state.name || '').trim();
+  el.textContent = nm || 'Untitled sketch (not named yet)';
+  if (curRec && curRec.id === state.sketchId && curRec.from && !isUnsaved() && tms(curRec.saved) === tms(curRec.sent)) {
+    const s = document.createElement('small'); s.textContent = ' · as saved on the ' + curRec.from; el.appendChild(s);
+  }
+}
 function updateSaveState(at) {
   const el = document.getElementById('saveState'), un = isUnsaved();
   if (un && !unsavedSince) unsavedSince = Date.now();
   if (!un) unsavedSince = null;
   el.classList.toggle('unsaved', un);
   el.querySelector('span').textContent = un ? 'Unsaved' : (at ? 'Saved ' + at.toTimeString().slice(0, 5) : 'Saved');
+  renderCurName();
   el.title = un ? 'Changes not saved yet' : ('Saved on this iPad' + (curRec && curRec.id === state.sketchId ? (isSent(curRec) ? ' · sent to iCloud ' + fmtWhen(curRec.sent) : ' · not sent to iCloud yet') : ''));
 }
 function ask(text, buttons) {
@@ -3569,7 +3583,7 @@ function openRec(rec) {
   try { pushUndo(); if (!document.getElementById('noteBox').hidden) closeNote(); tapRec = null; fromJSON(JSON.parse(JSON.stringify(rec.data))); }
   catch (e) { undoStack.pop(); status(`“${rec.name}” couldn't be opened.`, true); return; }
   state.sketchId = rec.id; state.name = rec.name; curRec = rec;
-  syncControls(); fitView(); changed(true); markSaved(); closeStore();
+  syncControls(); renderCurName(); fitView(); changed(true); markSaved(); closeStore();
   status(`Opened “${rec.name}”, saved ${fmtWhen(rec.saved)}.` + ((state.macUnits && state.macUnits.length) ? ` ${state.macUnits.length} Mac unit(s) kept, shown as faint outlines: edit them on the Mac.` : ''));
 }
 async function renderStore() {
@@ -3639,11 +3653,11 @@ async function openFileData(d, fname, rec, keepNewer) {
     const copy = Object.assign({}, rec, { id: newSketchId(), name: await uniqueSketchName(`${rec.name} (iPad ${fmtWhen(rec.saved)})`, ''), sent: '', sentSaved: '' });
     copy.data = Object.assign({}, rec.data, { id: copy.id, name: copy.name }); await skPut(copy);
   }
-  if (!state.name) state.name = (fname || 'Sketch').replace(/\.json$/i, '');
+  if (!state.name) state.name = (fname || 'Sketch').replace(/\.json$/i, '').replace(/[_-]+/g, ' ').trim() || 'Sketch';
   state.name = await uniqueSketchName(state.name, state.sketchId);
-  syncControls(); changed(true);
+  syncControls(); renderCurName(); changed(true);
   const data = toJSON(), at = d.modified || data.modified;
-  curRec = { id: state.sketchId, name: state.name, saved: at, sent: at, sentSaved: at, data };   // it came from iCloud, so that version is there
+  curRec = { id: state.sketchId, name: state.name, saved: at, sent: at, sentSaved: at, data, from: d.saved_on || (/Mac/.test(d.app || '') ? 'Mac' : '') };   // it came from iCloud, so that version is there
   try { await skPut(curRec); } catch (e) { }
   markSaved(); closeStore();
   status(`Opened ${fname}${d.saved_on || /Mac/.test(d.app || '') ? ' (saved on the ' + (d.saved_on || 'Mac') + ' ' + fmtWhen(d.modified) + ')' : ''}. It's kept on this iPad now.` + (keepNewer ? ' The newer iPad copy is still in the list.' : '') + ((state.macUnits && state.macUnits.length) ? ` ${state.macUnits.length} Mac unit(s) kept, shown as faint outlines: edit them on the Mac.` : ''));
@@ -3711,11 +3725,13 @@ function syncControls() {
   document.getElementById('wave').value = state.wave; if (typeof renderPresetNote === 'function') renderPresetNote(); document.getElementById('hear').checked = state.hear;
   document.getElementById('showAnn').checked = state.showAnn; document.getElementById('scoreNotes').value = state.scoreNotes || '';
   document.querySelectorAll('[data-tool]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tool === state.tool)));
+  renderCurName();
 }
 fieldType.addEventListener('change', () => { state.field.type = fieldType.value; delete state.field.interval; renderFieldParams(); changed(true); });
 fieldRoot.addEventListener('change', () => { state.field.root = +fieldRoot.value; changed(true); });
 document.getElementById('snap').addEventListener('change', e => { state.snap = e.target.checked; changed(false); });
-nameIn.addEventListener('input', () => { state.name = nameIn.value; changed(false); });
+nameIn.addEventListener('input', () => { state.name = nameIn.value; renderCurName(); changed(false); });
+document.getElementById('curName').addEventListener('click', () => openStore());
 function parseDur(txt) {
   const t = String(txt).trim();
   const m = t.match(/^(\d+):(\d{1,2}(?:\.\d+)?)$/);
@@ -6280,7 +6296,7 @@ resize();
 </script>
 
 <script>
-/* Standalone build v58-20261107-1448-a4dea6: keep the app on the iPad so it opens with no internet. */
+/* Standalone build v59-20261107-1559-1ddd0c: keep the app on the iPad so it opens with no internet. */
 if ('serviceWorker' in navigator) window.addEventListener('load', () => {
   navigator.serviceWorker.register('sw.js').catch(() => { });
 });
