@@ -148,7 +148,13 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
 .chip:disabled, .lane-head select:disabled { opacity: .45; cursor: default; }
 .tog.small { min-height: 34px; font-size: 12px; padding: 0 8px; }
 .lane-body { display: flex; min-width: 0; }
-#lane { display: block; flex: 1; min-width: 0; height: var(--laneH, 170px); touch-action: none; }
+/* v66: stacked lanes (the other lanes of the unit, above the one being edited) */
+.lane-stack { max-height: calc(var(--stripH, 56px) * 3 + 4px); overflow-y: auto; border-bottom: 1px solid var(--line); -webkit-overflow-scrolling: touch; }
+.lstrip { display: flex; border-bottom: 1px solid var(--line); cursor: pointer; }
+.lstrip:last-child { border-bottom: 0; }
+.lstrip canvas { display: block; flex: 1; min-width: 0; height: var(--stripH, 56px); }
+.lstrip .lspad { width: 65px; flex: none; }
+#lane { display: block; flex: 1; min-width: 0; height: max(120px, calc(var(--laneH, 170px) - var(--stackH, 0px))); touch-action: none; }
 .lane .lane-head, .lane .curve-row { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
 .lane-head::-webkit-scrollbar, .curve-row::-webkit-scrollbar { display: none; }
 .lane-head > *, .curve-row > * { flex: none; }
@@ -363,6 +369,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
           <span class="lh">Envelope</span>
           <span class="lu" id="laneUnit">No unit selected</span>
           <span class="segbtns" role="group" aria-label="Envelope type"><button class="chip on" id="laneVol" aria-pressed="true" title="Loudness envelope">Loudness</button><button class="chip" id="lanePan" aria-pressed="false" title="Pan: the centre of the unit's voices, left to right across the unit">Pan</button><button class="chip" id="laneSpread" aria-pressed="false" title="Spread: how far the Spatialisation law spreads the voices, 0 = all at the centre">Spread</button></span>
+          <button class="chip" id="laneStackBtn" aria-pressed="false" title="Show the unit's other lanes stacked above the one you are editing; tap one to edit it">Stack</button>
           <select id="envTarget" aria-label="Envelope for"></select>
           <button class="chip" id="loopBtn">▶ Loop unit</button>
           <button class="chip rec" id="recBtn" title="Play the unit once and record the fader">● Record</button>
@@ -432,6 +439,13 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
           <label class="ten" for="tension">Tension <input type="range" id="tension" min="0" max="1" step="0.01" value="0.5"></label>
           <button class="chip" id="curveAll">Apply to all segments</button>
         </div>
+        <div class="lane-head stack-row" id="stackRow" hidden>
+          <span class="lh">Stack</span>
+          <span class="segbtns" id="stackShow" role="group" aria-label="Lanes shown in the stack"></span>
+          <button class="chip" id="stackTall" aria-pressed="false" title="Taller rows in the stack">Tall rows</button>
+          <span class="segnote">Tap a lane to edit it · scroll for more</span>
+        </div>
+        <div class="lane-stack" id="laneStack" hidden></div>
         <div class="lane-body">
           <canvas id="lane" aria-label="Envelope lane: loudness of the selected unit from its start to its end"></canvas>
           <div class="fader" id="fader" role="slider" tabindex="0" aria-label="Record fader" aria-valuemin="-60" aria-valuemax="0" aria-valuenow="0">
@@ -480,7 +494,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
     <label>Name <input id="mrName" type="text" autocomplete="off" style="width: 14em" aria-label="Name"></label>
     <span class="selrow"><button class="btn primary" id="mrOk">Done</button><button class="btn warn" id="mrDel">Delete</button><button class="btn" id="mrCancel">Cancel</button></span></div>
   <div class="askbar" id="askBar" hidden><span id="askText"></span><span class="selrow" id="askBtns"></span></div>
-  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v65</span></div>
+  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v66</span></div>
 </div>
 
 <div class="laypop" id="layerDots" role="menu" aria-label="Layer to draw on" hidden></div>
@@ -5676,6 +5690,7 @@ function setLaneMode(m) {
 }
 function paintLaneMode() {
   const m = state.laneMode;
+  renderStack();
   $('fader').style.visibility = m === 'vol' ? '' : 'hidden';      // the record fader is loudness only
   $('laneVol').classList.toggle('on', m === 'vol'); $('laneVol').setAttribute('aria-pressed', m === 'vol');
   $('lanePan').classList.toggle('on', m === 'pan'); $('lanePan').setAttribute('aria-pressed', m === 'pan');
@@ -6149,8 +6164,94 @@ function endLane() {
 lane.addEventListener('pointerup', endLane);
 lane.addEventListener('pointercancel', endLane);
 
+// ---- v66: stacked lanes. The lane being edited stays below; the unit's other lanes are compact rows
+// above it, in a fixed order, scrolled when there are more than three. Tap a row to edit that lane.
+const LANE_ORDER = ['vol', 'pan', 'spread', 'mod0', 'mod1', 'mod2'];
+let stackOn = false, stackTall = false, stackShow = {};
+try { const o = JSON.parse(localStorage.getItem('lhLaneStack') || '{}'); stackOn = !!o.on; stackTall = !!o.tall; stackShow = o.show || {}; } catch (e) { }
+function saveStack() { try { localStorage.setItem('lhLaneStack', JSON.stringify({ on: stackOn, tall: stackTall, show: stackShow })); } catch (e) { } }
+const laneExists = (s, m) => m === 'vol' || m === 'pan' || m === 'spread' || !!(s && s.mods && s.mods[+m[3]]);
+function laneDrawn(s, m) {
+  if (!s) return false;
+  if (m === 'vol') return true;
+  if (m === 'pan') return !!(s.pan_env && s.pan_env.length > 1);
+  if (m === 'spread') return !!((s.spread_env && s.spread_env.length > 1) || s.space);
+  return laneExists(s, m);
+}
+const stackKey = m => m.startsWith('mod') ? 'mod' : m;
+const laneShown = (s, m) => stackShow[stackKey(m)] != null ? stackShow[stackKey(m)] : laneDrawn(s, m);
+function laneName(s, m) {
+  if (m === 'vol') return 'Loudness'; if (m === 'pan') return 'Pan'; if (m === 'spread') return 'Spread';
+  const ml = s.mods[+m[3]], pr = layerSoundOf(s), d = pr && modDef(pr.engine, ml.k);
+  return (+m[3] + 1) + ' · ' + modShort(d ? d.l : (ml.l || ml.k));
+}
+function laneEnvFor(s, m) {
+  if (m === 'vol') return unitEnv(s);
+  if (m === 'pan') return rawPanEnv(s);
+  if (m === 'spread') return (s.spread_env && s.spread_env.length > 1) ? s.spread_env : spreadFlatOf(s);
+  const ml = s.mods && s.mods[+m[3]]; return ml ? ml.pts : null;
+}
+function renderStack() {
+  const box = $('laneStack'), row = $('stackRow'), btn = $('laneStackBtn'); if (!box) return;
+  const s = selUnit();
+  btn.setAttribute('aria-pressed', String(stackOn)); btn.classList.toggle('on', stackOn);
+  row.hidden = !stackOn;
+  document.documentElement.style.setProperty('--stripH', stackTall ? '104px' : '56px');
+  $('stackTall').setAttribute('aria-pressed', String(stackTall)); $('stackTall').classList.toggle('on', stackTall);
+  $('stackShow').innerHTML = [['vol', 'Loudness'], ['pan', 'Pan'], ['spread', 'Spread'], ['mod', 'Modulation']].map(([k, l]) => {
+    const on = s ? (k === 'mod' ? (stackShow.mod != null ? stackShow.mod : !!(s.mods && s.mods.length)) : laneShown(s, k)) : !!stackShow[k];
+    return `<button class="chip${on ? ' on' : ''}" data-sshow="${k}" aria-pressed="${on}">${l}</button>`;
+  }).join('');
+  $('stackShow').querySelectorAll('[data-sshow]').forEach(b => b.addEventListener('click', () => {
+    stackShow[b.dataset.sshow] = b.getAttribute('aria-pressed') !== 'true'; saveStack(); renderStack();
+  }));
+  const list = s && stackOn ? LANE_ORDER.filter(m => m !== state.laneMode && laneExists(s, m) && laneShown(s, m)) : [];
+  box.hidden = !list.length;
+  // the stack shares the panel's height with the lane being edited (which keeps at least 120 px)
+  document.documentElement.style.setProperty('--stackH', list.length ? (Math.min(list.length, 3) * ((stackTall ? 104 : 56) + 1) + 34) + 'px' : '0px');
+  const key = list.join(',') + '|' + (s ? s.id : '') + '|' + stackTall;
+  if (box._key !== key) {
+    box._key = key;
+    box.innerHTML = list.map(m => `<div class="lstrip" data-lane="${m}" role="button" tabindex="0" aria-label="Edit the ${laneName(s, m)} lane"><canvas></canvas><span class="lspad"></span></div>`).join('');
+    box.querySelectorAll('.lstrip').forEach(el => {
+      el.addEventListener('click', () => { setLaneMode(el.dataset.lane); });
+      el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setLaneMode(el.dataset.lane); } });
+    });
+  }
+  requestDraw();
+}
+function drawStrips() {
+  const box = $('laneStack'); if (!box || box.hidden) return;
+  const s = selUnit(); if (!s) return;
+  const L = layerById(s.layer);
+  box.querySelectorAll('.lstrip').forEach(el => {
+    const cv = el.querySelector('canvas'), m = el.dataset.lane, w = cv.clientWidth, h = cv.clientHeight;
+    if (!w || !h || !laneExists(s, m)) return;
+    if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+    const c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    c.fillStyle = '#f4efe3'; c.fillRect(0, 0, w, h);
+    const x0 = LM.l, x1 = w - LM.r, t = 5, b = h - 5, Yv = v => t + (1 - v) * (b - t), pts = laneEnvFor(s, m);
+    if (!pts) return;
+    const N = Math.max(60, Math.round((x1 - x0) / 2)), base = m === 'pan' ? 0.5 : 0;
+    if (m === 'pan') { c.fillStyle = 'rgba(46,38,31,0.18)'; c.fillRect(x0, Math.round(Yv(0.5)), x1 - x0, 1); }
+    c.fillStyle = rgba(L.hue, 0.14); c.beginPath(); c.moveTo(x0, Yv(base));
+    for (let i = 0; i <= N; i++) { const u = i / N; c.lineTo(x0 + u * (x1 - x0), Yv(envAt(pts, u))); }
+    c.lineTo(x1, Yv(base)); c.closePath(); c.fill();
+    c.strokeStyle = 'rgba(38,98,104,0.8)'; c.lineWidth = 1.5; c.beginPath();
+    for (let i = 0; i <= N; i++) { const u = i / N, x = x0 + u * (x1 - x0), y = Yv(envAt(pts, u)); i ? c.lineTo(x, y) : c.moveTo(x, y); }
+    c.stroke();
+    c.strokeStyle = 'rgba(46,38,31,0.18)'; c.lineWidth = 1; c.strokeRect(x0 + 0.5, t + 0.5, x1 - x0 - 1, b - t - 1);
+    const u = loopPhase();
+    if (u != null) { c.fillStyle = '#266268'; c.fillRect(Math.round(x0 + u * (x1 - x0)), t, 2, b - t); }
+    c.font = '600 10px "IBM Plex Mono", ui-monospace, monospace'; c.textBaseline = 'middle'; c.textAlign = 'left';
+    const nm = laneName(s, m), tw = c.measureText(nm).width;
+    c.fillStyle = 'rgba(244,239,227,0.85)'; c.fillRect(x0 + 2, t + 2, tw + 8, 14);
+    c.fillStyle = '#4a4038'; c.fillText(nm, x0 + 6, t + 9);
+  });
+}
 function drawLane() {
   if (!LW || !LHt) return;
+  drawStrips();
   const c = lg; c.setTransform(dpr, 0, 0, dpr, 0, 0);
   c.fillStyle = '#f9f6ee'; c.fillRect(0, 0, LW, LHt);
   const s = selUnit();
@@ -6319,6 +6420,8 @@ function lfoDone() { lfoUndoKey = null; changed(false); }
 $('laneVol').addEventListener('click', () => setLaneMode('vol'));
 $('lanePan').addEventListener('click', () => setLaneMode('pan'));
 $('laneSpread').addEventListener('click', () => setLaneMode('spread'));
+$('laneStackBtn').addEventListener('click', () => { stackOn = !stackOn; saveStack(); renderStack(); status(stackOn ? 'Stack: the unit\'s other lanes show above the one you edit. Tap one to edit it; Show picks which.' : 'One lane at a time.'); });
+$('stackTall').addEventListener('click', () => { stackTall = !stackTall; saveStack(); renderStack(); });
 $('lfoShape').innerHTML = LFO_SHAPES.map(([k, l]) => `<option value="${k}">${l}</option>`).join('');
 $('lfoPreset').innerHTML = '<option value="">Presets…</option>' + LFO_PRESETS.map((p, i) => `<option value="${i}">${p.name}</option>`).join('');
 $('lfoBtn').addEventListener('click', () => {
@@ -6883,7 +6986,7 @@ resize();
 </script>
 
 <script>
-/* Standalone build v65-20261108-0903-891e9c: keep the app on the iPad so it opens with no internet. */
+/* Standalone build v66-20261108-0909-403eb8: keep the app on the iPad so it opens with no internet. */
 if ('serviceWorker' in navigator) window.addEventListener('load', () => {
   // an update downloads in the background; when it takes over, say so and offer a reload (the open sketch is kept on the iPad)
   const had = !!navigator.serviceWorker.controller;
