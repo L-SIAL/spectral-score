@@ -1,5 +1,5 @@
-/* LH Spectral Palette offline cache, build v59-20261107-1559-1ddd0c */
-const CACHE = 'lh-palette-v59-20261107-1559-1ddd0c';
+/* LH Spectral Palette offline cache, build v60-20261107-1616-083cfe */
+const CACHE = 'lh-palette-v60-20261107-1616-083cfe';
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));

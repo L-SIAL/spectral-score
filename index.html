@@ -470,7 +470,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
     <label>Name <input id="mrName" type="text" autocomplete="off" style="width: 14em" aria-label="Name"></label>
     <span class="selrow"><button class="btn primary" id="mrOk">Done</button><button class="btn warn" id="mrDel">Delete</button><button class="btn" id="mrCancel">Cancel</button></span></div>
   <div class="askbar" id="askBar" hidden><span id="askText"></span><span class="selrow" id="askBtns"></span></div>
-  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v59</span></div>
+  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v60</span></div>
 </div>
 
 <div class="laypop" id="layerDots" role="menu" aria-label="Layer to draw on" hidden></div>
@@ -2858,12 +2858,52 @@ function stretchSel(k) {
 function transposeSel(semis) { const list = selSet(); if (!list.length) return; pushUndo(); for (const u of list) shiftUnit(u, 0, Math.pow(2, semis / 12)); changed(true); }
 // ---- v32: unit library — single units saved by name, kept on this iPad and inside every sketch
 var unitLib = (function () { try { const r = JSON.parse(localStorage.getItem('lh-ipad-unit-library-v1') || '[]'); return Array.isArray(r) ? r.filter(x => x && x.id && x.unit) : []; } catch (e) { return []; } })();
-function saveUnitLib() { try { localStorage.setItem('lh-ipad-unit-library-v1', JSON.stringify(unitLib)); } catch (e) { } }
-function mergeUnitLib(list) {
-  if (!Array.isArray(list)) return 0; let n = 0;
-  for (const x of list) if (x && x.id && x.unit && x.unit.kind && !unitLib.some(y => y.id === x.id)) { unitLib.push({ id: x.id, name: String(x.name || 'Unit'), saved: x.saved || '', unit: x.unit }); n++; }
-  if (n) saveUnitLib(); return n;
+// ---- v60: one shared library (units + Sound Lab presets) for the iPad and the Mac.
+// Every item has 'modified'; the newer edit wins. Deletions travel as library_deleted {id: when}.
+// The library rides inside every sketch (unit_library, sound_library), so opening a sketch brings it up to date.
+var libDeleted = (function () { try { const r = JSON.parse(localStorage.getItem('lh-ipad-library-deleted-v1') || '{}'); return (r && typeof r === 'object') ? r : {}; } catch (e) { return {}; } })();
+var libSeen = new Map();     // id -> content last stamped, so any edit gets a new 'modified'
+function libCanon(v) {
+  if (Array.isArray(v)) return '[' + v.map(libCanon).join(',') + ']';
+  if (v && typeof v === 'object') return '{' + Object.keys(v).filter(k => k !== 'modified' && k !== 'builtin' && v[k] !== undefined).sort().map(k => JSON.stringify(k) + ':' + libCanon(v[k])).join(',') + '}';
+  return JSON.stringify(v === undefined ? null : v);
 }
+const libWhen = x => { const v = Date.parse(String(x && (x.modified || x.saved) || '').replace(' ', 'T')); return isNaN(v) ? 0 : v; };
+function libStamp(list) {
+  const now = new Date().toISOString();
+  for (const x of list) { if (!x || !x.id) continue; const h = libCanon(x); if (!libSeen.has(x.id) ? !x.modified : libSeen.get(x.id) !== h) x.modified = now; libSeen.set(x.id, h); }
+}
+function libForget(id) {     // a deletion that the other side will see
+  libDeleted[id] = new Date().toISOString(); libSeen.delete(id);
+  const cut = Date.now() - 365 * 864e5; for (const k in libDeleted) if (Date.parse(libDeleted[k]) < cut) delete libDeleted[k];
+  try { localStorage.setItem('lh-ipad-library-deleted-v1', JSON.stringify(libDeleted)); } catch (e) { }
+}
+// merge incoming items into 'local' (in place); returns {added, updated, removed}
+function libMerge(local, incoming, dels, norm) {
+  const out = { added: 0, updated: 0, removed: 0 };
+  let delChanged = false;
+  if (dels && typeof dels === 'object') for (const id in dels) { const at = dels[id]; if (typeof at === 'string' && (!libDeleted[id] || Date.parse(at) > Date.parse(libDeleted[id]))) { libDeleted[id] = at; delChanged = true; } }
+  if (delChanged) try { localStorage.setItem('lh-ipad-library-deleted-v1', JSON.stringify(libDeleted)); } catch (e) { }
+  const gone = x => { const at = libDeleted[x.id]; return at && Date.parse(at) >= libWhen(x); };
+  for (const raw of (Array.isArray(incoming) ? incoming : [])) {
+    const x = raw && raw.id ? norm(raw) : null; if (!x || gone(x)) continue;
+    const i = local.findIndex(y => y.id === x.id);
+    if (i < 0) { local.push(x); out.added++; }
+    else if (libWhen(x) > libWhen(local[i]) && libCanon(x) !== libCanon(local[i])) { local[i] = x; out.updated++; }
+    else continue;
+    libSeen.set(x.id, libCanon(x));
+  }
+  for (let i = local.length - 1; i >= 0; i--) if (local[i] && gone(local[i])) { local.splice(i, 1); out.removed++; }
+  return out;
+}
+const libNormUnit = x => (x.unit && x.unit.kind) ? Object.assign({ id: x.id, name: String(x.name || 'Unit'), saved: x.saved || '', unit: x.unit }, x.units ? { units: x.units } : {}, x.modified ? { modified: x.modified } : {}) : null;
+function saveUnitLib() { libStamp(unitLib); try { localStorage.setItem('lh-ipad-unit-library-v1', JSON.stringify(unitLib)); } catch (e) { } }
+function mergeUnitLib(list, dels) {
+  const r = libMerge(unitLib, list, dels, libNormUnit);
+  if (r.added || r.updated || r.removed) { try { localStorage.setItem('lh-ipad-unit-library-v1', JSON.stringify(unitLib)); } catch (e) { } }
+  return r;
+}
+for (const x of unitLib) libSeen.set(x.id, libCanon(x));
 function startDrag(u, t, f, copy) {
   pushUndo();
   let list = selSet(); if (!list.includes(u)) list = groupOf(u);
@@ -3301,6 +3341,9 @@ function toJSON() {
     ipad_sounds: { note: 'Sound Lab presets per layer. assign = {layer id: preset id}. Each preset: engine (iPad id), params (named), mac = {engine: Score Tool engine id, sliders: {JSFX slider number: value}}; the Mac Commit sets those sliders on the layer\'s synth (param index = slider - 1). mode is the iPad preview only.', mode: state.wave,
       assign: state.layerSound, presets: allSounds().filter(p => Object.values(state.layerSound).includes(p.id)).map(soundForFile) },
     unit_library: unitLib,
+    sound_library: userSounds.map(soundForFile),
+    library_deleted: libDeleted,
+    library_format: 'v60: unit_library and sound_library are the whole shared library (iPad and Mac). Each item has modified (ISO); the newer one wins. library_deleted = {id: when deleted}.',
     unit_library_format: 'Saved single units: [{id, name, saved, unit}] where unit is a normal stroke (its own times and pitches). Placing one copies it to a new time.',
     score_notes: state.scoreNotes || '',
     score_notes_at: state.scoreNotesAt || '',
@@ -3313,6 +3356,8 @@ function toJSON() {
   Object.assign(out, state.macExtra || {});
   return out;
 }
+var lastLibMerge = { added: 0, updated: 0, removed: 0 };
+function libNews(r) { const p = []; if (r.added) p.push(r.added + ' new'); if (r.updated) p.push(r.updated + ' updated'); if (r.removed) p.push(r.removed + ' removed'); return p.length ? ' Library: ' + p.join(', ') + '.' : ''; }
 function fromJSON(d) {
   if (!d || d.format !== 'lh-spectral-palette-sketch' || !Array.isArray(d.strokes)) throw new Error('not a sketch');
   state.name = (d.name && d.name !== 'Untitled sketch') ? d.name : ''; state.created = d.created || new Date().toISOString();
@@ -3343,15 +3388,14 @@ function fromJSON(d) {
   state.markers = Array.isArray(d.markers) ? d.markers.filter(m => m && isFinite(+m.t)).map(m => Object.assign({ id: m.id || uid(), t: +m.t, name: m.name || '' }, m.kind ? { kind: m.kind } : {})) : [];
   state.regions = Array.isArray(d.regions) ? d.regions.filter(r => r && isFinite(+r.a) && isFinite(+r.b) && +r.b > +r.a).map(r => ({ id: r.id || uid(), a: +r.a, b: +r.b, name: r.name || '' })) : [];
   mrSel = null;
+  lastLibMerge = mergeSounds([].concat(Array.isArray(d.sound_library) ? d.sound_library : [], (d.ipad_sounds && Array.isArray(d.ipad_sounds.presets)) ? d.ipad_sounds.presets : []), d.library_deleted);
   if (d.ipad_sounds && typeof d.ipad_sounds === 'object') {
-    for (const pr of (d.ipad_sounds.presets || [])) if (pr && pr.id && pr.engine && !soundById(pr.id)) userSounds.push(Object.assign({}, pr, { builtin: false }));
-    saveUserSounds();
     if (d.ipad_sounds.assign && typeof d.ipad_sounds.assign === 'object') { state.layerSound = Object.assign({}, d.ipad_sounds.assign); saveLayerSounds(); }
     // v55: the sketch's layer sounds play again when it is opened (the mode used to be left on plain sine)
     const md = d.ipad_sounds.mode; state.wave = (md === 'sine' || md === 'organ' || md === 'presets') ? md : 'presets';
     if (Object.keys(state.layerSound).length) state.wave = 'presets';
   }
-  mergeUnitLib(d.unit_library);
+  { const r = mergeUnitLib(d.unit_library, d.library_deleted); for (const k in r) lastLibMerge[k] += r[k]; }
   state.annotations = Array.isArray(d.annotations) ? d.annotations.filter(a => a && a.kind) : [];
   state.strokes = d.strokes.filter(s => s && (s.kind === 'band' ? Array.isArray(s.points) : s.kind === 'block' ? (Array.isArray(s.notes_hz) && s.notes_hz.length > 0) : s.kind === 'pulse' ? (+s.f_hz > 0)
     : s.kind === 'line' ? (Array.isArray(s.points) && s.points.length >= 2)
@@ -3660,7 +3704,7 @@ async function openFileData(d, fname, rec, keepNewer) {
   curRec = { id: state.sketchId, name: state.name, saved: at, sent: at, sentSaved: at, data, from: d.saved_on || (/Mac/.test(d.app || '') ? 'Mac' : '') };   // it came from iCloud, so that version is there
   try { await skPut(curRec); } catch (e) { }
   markSaved(); closeStore();
-  status(`Opened ${fname}${d.saved_on || /Mac/.test(d.app || '') ? ' (saved on the ' + (d.saved_on || 'Mac') + ' ' + fmtWhen(d.modified) + ')' : ''}. It's kept on this iPad now.` + (keepNewer ? ' The newer iPad copy is still in the list.' : '') + ((state.macUnits && state.macUnits.length) ? ` ${state.macUnits.length} Mac unit(s) kept, shown as faint outlines: edit them on the Mac.` : ''));
+  status(`Opened ${fname}${d.saved_on || /Mac/.test(d.app || '') ? ' (saved on the ' + (d.saved_on || 'Mac') + ' ' + fmtWhen(d.modified) + ')' : ''}. It's kept on this iPad now.` + libNews(lastLibMerge) + (keepNewer ? ' The newer iPad copy is still in the list.' : '') + ((state.macUnits && state.macUnits.length) ? ` ${state.macUnits.length} Mac unit(s) kept, shown as faint outlines: edit them on the Mac.` : ''));
 }
 document.getElementById('open').addEventListener('click', () => openStore());
 fileIn.addEventListener('change', () => {
@@ -4297,7 +4341,18 @@ const IPAD_PRESETS = [
 const USER_SOUNDS_KEY = 'lh-ipad-sound-presets-v1', LAYER_SOUNDS_KEY = 'lh-ipad-layer-sounds-v1';
 let userSounds = [];
 try { const r = JSON.parse(localStorage.getItem(USER_SOUNDS_KEY) || '[]'); if (Array.isArray(r)) userSounds = r.filter(x => x && x.id && x.engine); } catch (e) { }
-const saveUserSounds = () => { try { localStorage.setItem(USER_SOUNDS_KEY, JSON.stringify(userSounds)); } catch (e) { } };
+const saveUserSounds = () => { libStamp(userSounds); try { localStorage.setItem(USER_SOUNDS_KEY, JSON.stringify(userSounds)); } catch (e) { } };
+for (const x of userSounds) libSeen.set(x.id, libCanon(x));
+// v60: presets from the shared library (a sketch, or LH Library.json); built-in REAPER presets are never replaced
+function mergeSounds(list, dels) {
+  const norm = pr => { if (!pr.engine || !ENGINE_DEFS[pr.engine] || IPAD_PRESETS.some(b => b.id === pr.id)) return null; const o = Object.assign({}, pr, { builtin: false }); delete o.mac; return o; };
+  const r = libMerge(userSounds, list, dels, norm);
+  if (r.added || r.updated || r.removed) {
+    try { localStorage.setItem(USER_SOUNDS_KEY, JSON.stringify(userSounds)); } catch (e) { }
+    if (r.removed) { for (const k in state.layerSound) if (!soundById(state.layerSound[k])) delete state.layerSound[k]; saveLayerSounds(); }
+  }
+  return r;
+}
 state.layerSound = { breath: 'breath_gentle1' };
 try { const r = JSON.parse(localStorage.getItem(LAYER_SOUNDS_KEY) || 'null'); if (r && typeof r === 'object') state.layerSound = r; } catch (e) { }
 const saveLayerSounds = () => { try { localStorage.setItem(LAYER_SOUNDS_KEY, JSON.stringify(state.layerSound)); } catch (e) { } };
@@ -6047,7 +6102,7 @@ function labSave(asNew) {
 function labDelete() {
   const pr = soundById(labSel); if (!pr || pr.builtin) return;
   ask(`Delete the preset “${pr.name}”? Layers using it go back to sine.`, [['Delete', () => {
-    userSounds = userSounds.filter(x => x !== pr); saveUserSounds();
+    libForget(pr.id); userSounds = userSounds.filter(x => x !== pr); saveUserSounds();
     for (const k in state.layerSound) if (state.layerSound[k] === pr.id) delete state.layerSound[k];
     saveLayerSounds(); labDirty = false; loadWork((allSounds().find(p => p.engine === pr.engine) || allSounds()[0]).id); renderLab(); renderPresetNote();
     status(`Deleted “${pr.name}”.`);
@@ -6200,7 +6255,7 @@ function renderLib() {
     row.querySelector('input').addEventListener('change', e => { x.name = e.target.value.trim() || x.name; saveUnitLib(); saveLocal(); });
     row.querySelector('[data-act=hear]').addEventListener('click', () => { const cs = cloneList(x.units || [x.unit]); for (const c of cs) if (!layerById(c.layer)) c.layer = state.layer; playUnitsNow(cs); });
     row.querySelector('[data-act=place]').addEventListener('click', () => placeLibUnit(x));
-    row.querySelector('[data-act=del]').addEventListener('click', () => ask(`Remove “${x.name}” from the library? Units already placed stay in the score.`, [['Remove', () => { unitLib = unitLib.filter(y => y !== x); saveUnitLib(); saveLocal(); renderLib(); }, 'warn'], ['Cancel', null]]));
+    row.querySelector('[data-act=del]').addEventListener('click', () => ask(`Remove “${x.name}” from the library? Units already placed stay in the score.`, [['Remove', () => { libForget(x.id); unitLib = unitLib.filter(y => y !== x); saveUnitLib(); saveLocal(); renderLib(); }, 'warn'], ['Cancel', null]]));
   });
 }
 function placeLibUnit(x) {
@@ -6215,17 +6270,19 @@ function placeLibUnit(x) {
 async function exportLib() {
   const data = JSON.stringify({ format: 'lh-spectral-library', version: 1, app: 'LH Spectral Palette (iPad)', saved: new Date().toISOString(),
     note: 'units = saved single units (as in unit_library); sounds = Sound Lab presets, each with mac = {engine, sliders} for the REAPER plug-in.',
-    units: unitLib, sounds: userSounds.map(soundForFile) }, null, 2);
+    units: unitLib, sounds: userSounds.map(soundForFile), deleted: libDeleted, modified_rule: 'each item has modified; the newer wins; deleted = {id: when}' }, null, 2);
   const filename = 'LH Library.json';
   if (downloads) { try { await downloads.save({ filename, data }); status(`Saved ${filename}: ${unitLib.length} unit(s), ${userSounds.length} preset(s). Choose Save to Files › iCloud Drive › LH Spectral Sketches.`); return; } catch (e) { if (e && e.code === 'declined') return; } }
   document.getElementById('copyName').textContent = filename; document.getElementById('copyText').value = data; document.getElementById('copyBox').hidden = false;
 }
 function importLib(d) {
-  const nu = mergeUnitLib(d.units); let ns = 0;
-  for (const pr of (d.sounds || [])) if (pr && pr.id && pr.engine && ENGINE_DEFS[pr.engine] && !soundById(pr.id)) { const o = Object.assign({}, pr, { builtin: false }); delete o.mac; userSounds.push(o); ns++; }
-  if (ns) saveUserSounds();
+  const u = mergeUnitLib(d.units, d.deleted), s = mergeSounds(d.sounds, d.deleted);
   if (!document.getElementById('libBox').hidden) renderLib();
-  status(`Library imported: ${nu} new unit(s), ${ns} new Sound Lab preset(s). Ones you already had were left as they are.`);
+  if (typeof renderLab === 'function' && !document.getElementById('labBox').hidden) renderLab();
+  renderPresetNote && renderPresetNote();
+  const part = (r, what) => (r.added || r.updated || r.removed) ? `${what}: ${[r.added && r.added + ' new', r.updated && r.updated + ' updated', r.removed && r.removed + ' removed'].filter(Boolean).join(', ')}` : '';
+  const msg = [part(u, 'units'), part(s, 'Sound Lab presets')].filter(Boolean).join(' · ');
+  status(msg ? `Library: ${msg}.` : `Library: already up to date (${unitLib.length} unit(s), ${userSounds.length} preset(s) of your own).`);
 }
 document.getElementById('libClose').addEventListener('click', closeLib);
 document.getElementById('libBox').addEventListener('click', e => { if (e.target.id === 'libBox') closeLib(); });
@@ -6296,7 +6353,7 @@ resize();
 </script>
 
 <script>
-/* Standalone build v59-20261107-1559-1ddd0c: keep the app on the iPad so it opens with no internet. */
+/* Standalone build v60-20261107-1616-083cfe: keep the app on the iPad so it opens with no internet. */
 if ('serviceWorker' in navigator) window.addEventListener('load', () => {
   navigator.serviceWorker.register('sw.js').catch(() => { });
 });
