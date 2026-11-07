@@ -470,7 +470,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
     <label>Name <input id="mrName" type="text" autocomplete="off" style="width: 14em" aria-label="Name"></label>
     <span class="selrow"><button class="btn primary" id="mrOk">Done</button><button class="btn warn" id="mrDel">Delete</button><button class="btn" id="mrCancel">Cancel</button></span></div>
   <div class="askbar" id="askBar" hidden><span id="askText"></span><span class="selrow" id="askBtns"></span></div>
-  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v60</span></div>
+  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v61</span></div>
 </div>
 
 <div class="laypop" id="layerDots" role="menu" aria-label="Layer to draw on" hidden></div>
@@ -4304,7 +4304,20 @@ function macSliders(pr) {
   }
   return { engine: ENGINE_MAC[pr.engine] || pr.engine, sliders: sl };
 }
-const soundForFile = pr => { const o = JSON.parse(JSON.stringify(pr)); o.params = fullParams(pr); o.mac = macSliders(pr); return o; };
+// v61: a preset made in the Mac Sound Lab keeps its full Mac slider set (the real synth); the iPad plays an approximation from it
+const soundForFile = pr => { const o = JSON.parse(JSON.stringify(pr)); o.params = fullParams(pr); o.mac = (pr.made_on === 'Mac' && pr.mac && pr.mac.sliders) ? JSON.parse(JSON.stringify(pr.mac)) : macSliders(pr); return o; };
+function paramsFromMac(pr) {
+  const out = {}, sl = (pr.mac && pr.mac.sliders) || {};
+  for (const d of ENGINE_DEFS[pr.engine] || []) {
+    if (!d.k || !d.s) continue;
+    const v = sl[String(d.s)]; if (typeof v !== 'number' || !isFinite(v)) continue;
+    if (d.opts) {
+      if (d.map) { let best = null, bd = Infinity; for (const k in d.map) { const dd = Math.abs(d.map[k] - v); if (dd < bd) { bd = dd; best = k; } } if (best != null) out[d.k] = isNaN(+best) ? best : (typeof d.d === 'number' ? +best : best); }
+      else { const o = d.opts[Math.round(v)]; if (o) out[d.k] = o[0]; }
+    } else out[d.k] = v;
+  }
+  return out;
+}
 const fullParams = pr => { const o = {}; for (const d of (ENGINE_DEFS[pr.engine] || [])) if (d.k) o[d.k] = d.d; return Object.assign(o, pr.params || {}); };
 const IPAD_PRESETS = [
   { id: 'breath_gentle1', name: 'Gentle breathy sound 1', engine: 'LH_Breath', builtin: true, from: 'REAPER track 9 (LH Score Tool – Workspace), 4 Nov 2026',
@@ -4345,7 +4358,9 @@ const saveUserSounds = () => { libStamp(userSounds); try { localStorage.setItem(
 for (const x of userSounds) libSeen.set(x.id, libCanon(x));
 // v60: presets from the shared library (a sketch, or LH Library.json); built-in REAPER presets are never replaced
 function mergeSounds(list, dels) {
-  const norm = pr => { if (!pr.engine || !ENGINE_DEFS[pr.engine] || IPAD_PRESETS.some(b => b.id === pr.id)) return null; const o = Object.assign({}, pr, { builtin: false }); delete o.mac; return o; };
+  const norm = pr => { if (!pr.engine || !ENGINE_DEFS[pr.engine] || IPAD_PRESETS.some(b => b.id === pr.id)) return null; const o = Object.assign({}, pr, { builtin: false });
+    if (pr.made_on === 'Mac' && pr.mac && pr.mac.sliders) o.params = Object.assign({}, pr.params || {}, paramsFromMac(pr)); else delete o.mac;
+    return o; };
   const r = libMerge(userSounds, list, dels, norm);
   if (r.added || r.updated || r.removed) {
     try { localStorage.setItem(USER_SOUNDS_KEY, JSON.stringify(userSounds)); } catch (e) { }
@@ -6031,7 +6046,7 @@ function renderLab() {
   document.getElementById('labList').innerHTML =
     `<div class="labengs">${ENGINE_ORDER.map(en => `<button class="labitem" data-engine="${en}" aria-current="${en === pr.engine}">${SHORT[en] || ENGINE_NAME[en]}<small>${ENGINE_NAME[en]} · ${(n => n + (n === 1 ? ' preset' : ' presets'))(allSounds().filter(p => p.engine === en).length)}</small></button>`).join('')}</div>
      <h4>Preset</h4>
-     <select id="labPreset" class="selrow" aria-label="Preset">${grp('From REAPER', ps.filter(p => p.builtin && !p.id.startsWith('modal_')))}${grp('Starters', ps.filter(p => p.builtin && p.id.startsWith('modal_')))}${grp('Yours', ps.filter(p => !p.builtin))}</select>`;
+     <select id="labPreset" class="selrow" aria-label="Preset">${grp('From REAPER', ps.filter(p => p.builtin && !p.id.startsWith('modal_')))}${grp('Starters', ps.filter(p => p.builtin && p.id.startsWith('modal_')))}${grp('From the Mac', ps.filter(p => !p.builtin && p.made_on === 'Mac'))}${grp('Yours', ps.filter(p => !p.builtin && p.made_on !== 'Mac'))}</select>`;
   document.querySelectorAll('#labList [data-engine]').forEach(b => b.addEventListener('click', () => {
     const en = b.dataset.engine; if (en === pr.engine) return;
     labGuard(() => { labAllOff(); loadWork((soundById(labLastByEngine[en]) && labLastByEngine[en]) || allSounds().find(p => p.engine === en).id); renderLab(); }, 'Save before switching synth?');
@@ -6079,18 +6094,19 @@ function labSetDirty(v) {
   if (v !== false) labDirty = v === undefined ? true : v;
   const pr = soundById(labSel), el = document.getElementById('labState'); if (!el || !pr) return;
   el.innerHTML = labDirty
-    ? `<b>● Unsaved changes.</b> ${pr.builtin ? 'This is a built-in preset (it stays as it came), so Save makes your own copy.' : 'Save writes them; Revert goes back.'} Kept automatically when you close the Lab, switch preset or use it on a layer; Revert goes back.`
-    : (pr.builtin ? `From ${esc2(pr.from || 'REAPER')} (stays as it came: saving makes your own copy).` : `Saved${pr.from ? ' · made from ' + esc2(pr.from) : ''}.`);
+    ? `<b>● Unsaved changes.</b> ${pr.builtin ? 'This is a built-in preset (it stays as it came), so Save makes your own copy.' : pr.made_on === 'Mac' ? 'This sound was made in the Mac Sound Lab (it stays as it came there), so Save makes an iPad copy.' : 'Save writes them; Revert goes back.'} Kept automatically when you close the Lab, switch preset or use it on a layer; Revert goes back.`
+    : (pr.builtin ? `From ${esc2(pr.from || 'REAPER')} (stays as it came: saving makes your own copy).` : pr.made_on === 'Mac' ? 'Made in the Mac Sound Lab on the real synth. The iPad plays an approximation; edit it on the Mac (saving here makes an iPad copy).' : `Saved${pr.from ? ' · made from ' + esc2(pr.from) : ''}.`);
   document.getElementById('labRevert').disabled = !labDirty;
 }
 const uniqueSoundName = (n, skip) => { let name = n, k = 2; while (allSounds().some(p => p !== skip && p.name === name)) name = `${n} ${k++}`; return name; };
 function labSave(asNew) {
   const pr = soundById(labSel), W = labWork, nm = document.getElementById('labName');
   const want = ((nm && nm.value.trim()) || W.name).slice(0, 60);
-  if (asNew || pr.builtin) {
-    const base = (asNew || pr.builtin) && want === pr.name ? want + (pr.builtin ? ' (iPad)' : ' copy') : want;
+  const fixed = pr.builtin || pr.made_on === 'Mac';
+  if (asNew || fixed) {
+    const base = (asNew || fixed) && want === pr.name ? want + (fixed ? ' (iPad)' : ' copy') : want;
     const cp = { id: 'u' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), name: uniqueSoundName(base), engine: W.engine,
-                 from: pr.builtin ? pr.name + ' (REAPER)' : (pr.from || pr.name), params: JSON.parse(JSON.stringify(W.params)) };
+                 from: pr.builtin ? pr.name + ' (REAPER)' : pr.made_on === 'Mac' ? pr.name + ' (made on the Mac)' : (pr.from || pr.name), params: JSON.parse(JSON.stringify(W.params)) };
     userSounds.push(cp); saveUserSounds(); loadWork(cp.id); changed(false);
     status(`Saved as “${cp.name}”.${pr.builtin ? ' The REAPER preset is unchanged.' : ''}`);
   } else {
@@ -6353,7 +6369,7 @@ resize();
 </script>
 
 <script>
-/* Standalone build v60-20261107-1616-083cfe: keep the app on the iPad so it opens with no internet. */
+/* Standalone build v61-20261107-1625-1ad3db: keep the app on the iPad so it opens with no internet. */
 if ('serviceWorker' in navigator) window.addEventListener('load', () => {
   navigator.serviceWorker.register('sw.js').catch(() => { });
 });
