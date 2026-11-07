@@ -3992,7 +3992,7 @@ function spaceBox(u) {
   const rf = r => Math.abs(r) < 0.005 ? 'none' : (r > 0 ? '+' : '') + r.toFixed(2) + ' turns';
   return `<section><h2>Spatialisation</h2>
     <p class="note">Each voice (a partial, a grain, a pulse) gets its own place and path. On the Mac every voice has its own MIDI channel, so this is written as its own 14-bit azimuth.</p>
-    <div class="prm"><label for="spLaw">Law</label><select id="spLaw" class="selrow"><option value="" ${sp ? '' : 'selected'}>Off${u.pan_env && u.pan_env.length > 1 ? ' (pan lane only)' : ''}</option>${o(SPACE_LAWS, sp && sp.law)}</select></div>
+    <div class="prm"><label for="spLaw">Spatialisation</label><select id="spLaw" class="selrow"><option value="" ${sp ? '' : 'selected'}>Off${u.pan_env && u.pan_env.length > 1 ? ' (pan lane only)' : ''}</option>${o(SPACE_LAWS, sp && sp.law)}</select></div>
     ${sp ? `${rng('spSpr', u.spread_env ? 'Spread (lane drawn)' : 'Spread', Math.round((sp.spread == null ? 1 : sp.spread) * 100) + '%', 0, 100, 1, Math.round((sp.spread == null ? 1 : sp.spread) * 100))}
     ${rng('spRot', 'Rotation', rf(sp.rotate || 0), -8, 8, 0.05, sp.rotate || 0)}
     <div class="prm"><label for="spPat">Events</label><select id="spPat" class="selrow">${o(SPACE_PATS, sp.pattern || 'fixed')}</select></div>
@@ -6883,7 +6883,7 @@ resize();
 </script>
 
 <script>
-/* Standalone build v65-20261108-0844-e9eb58: keep the app on the iPad so it opens with no internet. */
+/* Standalone build v65-20261108-0903-891e9c: keep the app on the iPad so it opens with no internet. */
 if ('serviceWorker' in navigator) window.addEventListener('load', () => {
   // an update downloads in the background; when it takes over, say so and offer a reload (the open sketch is kept on the iPad)
   const had = !!navigator.serviceWorker.controller;
