@@ -157,6 +157,18 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
 #lane { display: block; flex: 1; min-width: 0; height: max(120px, calc(var(--laneH, 170px) - var(--stackH, 0px))); touch-action: none; }
 .lane .lane-head, .lane .curve-row { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
 .lane-head::-webkit-scrollbar, .curve-row::-webkit-scrollbar { display: none; }
+/* v70: one-row envelope header; Lane / Shape / Curve / Stack / Edit live in drop-down menus */
+.chip.menu.open { background: var(--line); }
+.lpop { position: absolute; z-index: 40; background: var(--sheet); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; box-shadow: 0 6px 20px rgba(0,0,0,.16); width: max-content; max-width: min(560px, calc(100% - 8px)); }
+.lpop-h { font-family: var(--font-data); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 2px 0 4px; }
+.lpop-h + * { margin-bottom: 6px; }
+.lpop-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.lane .lpop .lane-head, .lane .lpop .curve-row { flex-wrap: wrap; overflow: visible; border-bottom: 0; padding: 2px 0; }
+.lane .lpop .lh { display: none; }
+.lane .lpop .shapes { flex-wrap: wrap; overflow: visible; }
+.lane > .lane-head > .lh { display: none; }
+.lane > .lane-head > #laneUnit { max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#envTarget:disabled { display: none; }
 .lane-head > *, .curve-row > * { flex: none; }
 .left .stage { min-height: 190px; }
 .chip.mod.on { background: rgba(107,63,115,.16); border-color: #6b3f73; color: #4a2a50; }
@@ -500,7 +512,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
     <label>Name <input id="mrName" type="text" autocomplete="off" style="width: 14em" aria-label="Name"></label>
     <span class="selrow"><button class="btn primary" id="mrOk">Done</button><button class="btn warn" id="mrDel">Delete</button><button class="btn" id="mrCancel">Cancel</button></span></div>
   <div class="askbar" id="askBar" hidden><span id="askText"></span><span class="selrow" id="askBtns"></span></div>
-  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v69</span></div>
+  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v70</span></div>
 </div>
 
 <div class="laypop" id="layerDots" role="menu" aria-label="Layer to draw on" hidden></div>
@@ -7007,10 +7019,57 @@ syncControls(); renderInspector(); updateSaveState();
 document.getElementById('hud').textContent = '';
 resize();
 })();
+// ---- v70: one-row envelope header. Lane, Shape, Curve, Stack and Edit are drop-down menus holding the
+// same controls as before (moved, not rebuilt, so all their wiring stays).
+(function () {
+  const $ = id => document.getElementById(id);
+  const box = $('laneBox'); if (!box) return;
+  box.style.position = 'relative';
+  const modRow = $('modRow'), shapeRow = box.querySelector('.shape-row'), curveRow = box.querySelector('.curve-row'), stackRow = $('stackRow'), segs = $('laneVol').parentElement;
+  const mk = (id, label, title) => { const b = document.createElement('button'); b.className = 'chip menu'; b.id = id; b.textContent = label; b.title = title; b.setAttribute('aria-haspopup', 'true'); b.setAttribute('aria-expanded', 'false'); return b; };
+  const pop = id => { const d = document.createElement('div'); d.className = 'lpop'; d.id = id; d.hidden = true; box.appendChild(d); return d; };
+  const head = (p, t) => { const h = document.createElement('div'); h.className = 'lpop-h'; h.textContent = t; p.appendChild(h); };
+  const row = (p, ids) => { const r = document.createElement('div'); r.className = 'lpop-row'; ids.forEach(id => r.appendChild($(id))); p.appendChild(r); return r; };
+  const bLane = mk('mLane', 'Loudness ▾', 'Which lane to edit: Loudness, Pan, Spread or a modulation lane');
+  const bShape = mk('mShape', 'Shape ▾', 'Load a shape onto this lane, or save this one');
+  const bCurve = mk('mCurve', 'Curve ▾', 'How the line bends between points');
+  const bStack = mk('mStack', 'Stack ▾', "Show the unit's other lanes above the one you are editing");
+  const bEdit = mk('mEdit', 'Edit ▾', 'Copy, paste, reduce points, delete point, reset, LFO');
+  const pLane = pop('popLane'), pShape = pop('popShape'), pCurve = pop('popCurve'), pStack = pop('popStack'), pEdit = pop('popEdit');
+  head(pLane, 'Lane'); pLane.appendChild(segs); head(pLane, 'Modulation'); pLane.appendChild(modRow);
+  head(pShape, 'Shapes'); pShape.appendChild(shapeRow);
+  head(pCurve, 'Curve'); pCurve.appendChild(curveRow);
+  head(pStack, 'Stack'); row(pStack, ['laneStackBtn']); pStack.appendChild(stackRow);
+  head(pEdit, 'Edit'); row(pEdit, ['copyEnv', 'pasteEnv', 'reduceBtn', 'delPoint', 'resetEnv']); head(pEdit, 'LFO'); row(pEdit, ['lfoBtn', 'secBtn']);
+  $('laneStackBtn').textContent = 'Show the stack';
+  let ref = $('laneUnit'); [bLane, bShape, bCurve, bStack, bEdit].forEach(b => { ref.after(b); ref = b; });
+  const menus = [[bLane, pLane], [bShape, pShape], [bCurve, pCurve], [bStack, pStack], [bEdit, pEdit]];
+  const close = () => menus.forEach(([b, p]) => { p.hidden = true; b.setAttribute('aria-expanded', 'false'); b.classList.remove('open'); });
+  menus.forEach(([b, p]) => b.addEventListener('click', e => {
+    e.stopPropagation(); const opening = p.hidden; close(); if (!opening) return;
+    p.hidden = false; b.setAttribute('aria-expanded', 'true'); b.classList.add('open');
+    const br = b.getBoundingClientRect(), xr = box.getBoundingClientRect();
+    p.style.top = Math.round(br.bottom - xr.top + 4) + 'px';
+    p.style.left = Math.round(Math.max(4, Math.min(br.left - xr.left, xr.width - p.offsetWidth - 4))) + 'px';
+  }));
+  document.addEventListener('pointerdown', e => { if (!menus.some(([b, p]) => p.contains(e.target) || b.contains(e.target))) close(); }, true);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && menus.some(([, p]) => !p.hidden)) close(); }, true);
+  pLane.addEventListener('click', e => { if (e.target.closest('#laneVol, #lanePan, #laneSpread, [data-mod]')) setTimeout(close, 0); }, true);
+  pShape.addEventListener('click', e => { if (e.target.closest('#shapes button, #shapes .chip')) setTimeout(close, 0); }, true);
+  pEdit.addEventListener('click', e => { if (e.target.closest('button')) setTimeout(close, 0); }, true);
+  const setT = (b, t) => { if (b.textContent !== t) b.textContent = t; };
+  const upd = () => {
+    const on = [$('laneVol'), $('lanePan'), $('laneSpread')].find(b => b.classList.contains('on')) || $('modChips').querySelector('.chip.on');
+    setT(bLane, (on ? on.textContent.trim() : 'Lane') + ' ▾');
+    setT(bStack, ($('laneStackBtn').classList.contains('on') ? 'Stack ✓' : 'Stack') + ' ▾');
+  };
+  new MutationObserver(upd).observe(box, { subtree: true, attributes: true, attributeFilter: ['class'], childList: true });
+  upd();
+})();
 </script>
 
 <script>
-/* Standalone build v69-20261108-2013-90db62: keep the app on the iPad so it opens with no internet. */
+/* Standalone build v70-20261108-2126-f015a5: keep the app on the iPad so it opens with no internet. */
 if ('serviceWorker' in navigator) window.addEventListener('load', () => {
   // an update downloads in the background; when it takes over, say so and offer a reload (the open sketch is kept on the iPad)
   const had = !!navigator.serviceWorker.controller;
