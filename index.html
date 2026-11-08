@@ -219,6 +219,12 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
 .prm input[type=range] { width: 100%; height: 30px; accent-color: var(--teal); margin: 0; }
 .ends { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--muted); margin-top: -4px; }
 .selrow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.selrow.pair { flex-wrap: nowrap; gap: 6px; width: 100%; max-width: 100%; box-sizing: border-box; }
+.selrow.pair .btn { flex: 1 1 0; min-width: 0; padding: 0 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sketch.stab-score { grid-template-columns: minmax(0, 1fr); }
+.sketch.stab-score select { min-width: 0; max-width: 100%; }
+.sketch.stab-score .ctl.stack .selrow { flex-wrap: nowrap; }
+.sketch.stab-score .ctl.stack .selrow select { flex: 1 1 0; }
 .selrow select { min-height: 38px; border: 1px solid var(--line); border-radius: 8px; background: var(--sheet); padding: 0 8px; flex: 1; min-width: 0; }
 .note { font-size: 12px; color: var(--muted); line-height: 1.45; margin: 0; }
 .tappad { display: grid; place-items: center; min-height: 120px; margin: 8px 0; border: 2px solid var(--teal); border-radius: 12px; background: #eef3f2; color: var(--teal); font-family: var(--font-data); font-size: 22px; font-weight: 600; letter-spacing: .08em; touch-action: none; cursor: pointer; -webkit-user-select: none; user-select: none; }
@@ -463,7 +469,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
         <h2>Sketch</h2>
         <input id="name" type="text" aria-label="Sketch name" autocomplete="off" placeholder="Sketch name">
         <div class="selrow"><button class="btn" id="open" title="Sketches on this iPad, or a file from iCloud (⌘O)">Open…</button><button class="btn" id="new">New</button></div>
-<div class="selrow"><button class="btn" id="saveAsNew" title="Save a copy under a new name; the original stays as it was (⇧⌘S)">Save as new…</button><button class="btn" id="sendIC" title="Put a copy in iCloud Drive for the Mac">Send to iCloud…</button></div>
+<div class="selrow pair"><button class="btn" id="saveAsNew" title="Save a copy under a new name; the original stays as it was (⇧⌘S)">Save as new…</button><button class="btn" id="sendIC" title="Put a copy in iCloud Drive for the Mac">Send to iCloud…</button></div>
         <label class="ctl stack">Field
           <span class="selrow"><select id="fieldType"></select><select id="fieldRoot" aria-label="Field root"></select></span>
         </label>
@@ -494,7 +500,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
     <label>Name <input id="mrName" type="text" autocomplete="off" style="width: 14em" aria-label="Name"></label>
     <span class="selrow"><button class="btn primary" id="mrOk">Done</button><button class="btn warn" id="mrDel">Delete</button><button class="btn" id="mrCancel">Cancel</button></span></div>
   <div class="askbar" id="askBar" hidden><span id="askText"></span><span class="selrow" id="askBtns"></span></div>
-  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v67</span></div>
+  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v68</span></div>
 </div>
 
 <div class="laypop" id="layerDots" role="menu" aria-label="Layer to draw on" hidden></div>
@@ -7004,7 +7010,7 @@ resize();
 </script>
 
 <script>
-/* Standalone build v67-20261108-2008-cdefed: keep the app on the iPad so it opens with no internet. */
+/* Standalone build v68-20261108-2011-ef5a99: keep the app on the iPad so it opens with no internet. */
 if ('serviceWorker' in navigator) window.addEventListener('load', () => {
   // an update downloads in the background; when it takes over, say so and offer a reload (the open sketch is kept on the iPad)
   const had = !!navigator.serviceWorker.controller;
