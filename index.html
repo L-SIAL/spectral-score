@@ -463,6 +463,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
         <h2>Sketch</h2>
         <input id="name" type="text" aria-label="Sketch name" autocomplete="off" placeholder="Sketch name">
         <div class="selrow"><button class="btn" id="open" title="Sketches on this iPad, or a file from iCloud (⌘O)">Open…</button><button class="btn" id="new">New</button></div>
+<div class="selrow"><button class="btn" id="saveAsNew" title="Save a copy under a new name; the original stays as it was (⇧⌘S)">Save as new…</button></div>
 <div class="selrow"><button class="btn" id="sendIC" title="Put a copy in iCloud Drive for the Mac">Send to iCloud…</button></div>
         <label class="ctl stack">Field
           <span class="selrow"><select id="fieldType"></select><select id="fieldRoot" aria-label="Field root"></select></span>
@@ -494,7 +495,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
     <label>Name <input id="mrName" type="text" autocomplete="off" style="width: 14em" aria-label="Name"></label>
     <span class="selrow"><button class="btn primary" id="mrOk">Done</button><button class="btn warn" id="mrDel">Delete</button><button class="btn" id="mrCancel">Cancel</button></span></div>
   <div class="askbar" id="askBar" hidden><span id="askText"></span><span class="selrow" id="askBtns"></span></div>
-  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v66</span></div>
+  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v67</span></div>
 </div>
 
 <div class="laypop" id="layerDots" role="menu" aria-label="Layer to draw on" hidden></div>
@@ -637,8 +638,8 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
 
 <div class="overlay" id="nameSheet" hidden>
   <div class="sheet">
-    <h3>Name this sketch</h3>
-    <p class="note">The date and time are filled in. Change the name if you like. Later saves keep this name and don't ask again; rename it under Settings › Sketch name.</p>
+    <h3 id="nameSheetH">Name this sketch</h3>
+    <p class="note" id="nameSheetP">The date and time are filled in. Change the name if you like. Later saves keep this name and don't ask again; rename it under Settings › Sketch name.</p>
     <input id="nameSheetIn" type="text" maxlength="80" autocomplete="off" aria-label="Sketch name" style="width:100%;margin:6px 0 10px">
     <div class="selrow"><button class="btn primary" id="nameSheetOk">Save</button><button class="btn" id="nameSheetCancel">Cancel</button></div>
   </div>
@@ -3564,10 +3565,14 @@ if (!(window.claude && window.claude.use)) downloads = { async save({ filename, 
 } };
 // v55: a new sketch is named once (date and time filled in, editable); after that Save just saves under that name
 const stampName = (d = new Date()) => { const z = n => String(n).padStart(2, '0'); return `Sketch ${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}-${z(d.getMinutes())}`; };
-function askName() {
+function askName(asNew) {
   return new Promise(res => {
     const box = document.getElementById('nameSheet'), inp = document.getElementById('nameSheetIn');
-    inp.value = (state.name || '').trim() || stampName(); box.hidden = false;
+    const H = document.getElementById('nameSheetH'), P = document.getElementById('nameSheetP');
+    if (!H.dataset.t) { H.dataset.t = H.textContent; P.dataset.t = P.textContent; }
+    H.textContent = asNew ? 'Save as new sketch' : H.dataset.t;
+    P.textContent = asNew ? 'A copy is saved under this name and opened. The original stays on this iPad as it was last saved.' : P.dataset.t;
+    inp.value = asNew ? `${(state.name || '').trim() || 'Sketch'} copy` : ((state.name || '').trim() || stampName()); box.hidden = false;
     setTimeout(() => { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }, 30);
     const done = v => { box.hidden = true; ok.removeEventListener('click', onOk); cancel.removeEventListener('click', onCancel); inp.removeEventListener('keydown', onKey); res(v); };
     const ok = document.getElementById('nameSheetOk'), cancel = document.getElementById('nameSheetCancel');
@@ -3664,6 +3669,19 @@ async function sendCurrent() {
   return sendRecs([curRec]);
 }
 document.getElementById('sendIC').addEventListener('click', () => sendCurrent());
+// v67: Save as new: a copy under a new name (new id); the original keeps its last saved state
+async function saveAsNew() {
+  if (saving) return false;
+  const nm = await askName(true); if (!nm) { status('Not saved.'); return false; }
+  const oldId = state.sketchId, oldName = state.name, oldRec = curRec;
+  state.sketchId = newSketchId(); state.name = nm; nameIn.value = nm; curRec = null;
+  const ok = await doSave();
+  if (!ok) { state.sketchId = oldId; state.name = oldName; nameIn.value = oldName || ''; curRec = oldRec; renderCurName(); return false; }
+  renderCurName();
+  status(`Saved a copy as “${state.name}” on this iPad, and it's open now. “${oldName || 'The original'}” is unchanged. Send to iCloud… when you want it on the Mac.`);
+  return true;
+}
+document.getElementById('saveAsNew').addEventListener('click', () => saveAsNew());
 // ---- the list of sketches on this iPad
 function openRec(rec) {
   try { pushUndo(); if (!document.getElementById('noteBox').hidden) closeNote(); tapRec = null; fromJSON(JSON.parse(JSON.stringify(rec.data))); }
@@ -5485,6 +5503,7 @@ document.addEventListener('keydown', e => {
     else if (k === 'x' && has) { e.preventDefault(); copySel(); deleteSel('Cut'); }
     else if (k === 'v' && clip) { e.preventDefault(); pasteClip(); }
     else if (k === 'd' && has) { e.preventDefault(); duplicateSel(); }
+    else if (k === 's' && e.shiftKey) { e.preventDefault(); saveAsNew(); }
     else if (k === 's') { e.preventDefault(); doSave(); }
     return;
   }
@@ -6986,7 +7005,7 @@ resize();
 </script>
 
 <script>
-/* Standalone build v66-20261108-1052-403eb8: keep the app on the iPad so it opens with no internet. */
+/* Standalone build v67-20261108-2006-fbb616: keep the app on the iPad so it opens with no internet. */
 if ('serviceWorker' in navigator) window.addEventListener('load', () => {
   // an update downloads in the background; when it takes over, say so and offer a reload (the open sketch is kept on the iPad)
   const had = !!navigator.serviceWorker.controller;
