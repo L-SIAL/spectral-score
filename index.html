@@ -166,6 +166,16 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
 .lane .lpop .lane-head, .lane .lpop .curve-row { flex-wrap: wrap; overflow: visible; border-bottom: 0; padding: 2px 0; }
 .lane .lpop .lh { display: none; }
 .lane .lpop .shapes { flex-wrap: wrap; overflow: visible; }
+#stackShow { display: none; }
+.llist { display: grid; gap: 4px; min-width: 260px; }
+.lrow { display: flex; align-items: center; gap: 6px; }
+.lrow .lpick { flex: 1; min-height: 34px; text-align: left; border: 1px solid var(--line); border-radius: 7px; background: var(--paper); padding: 0 10px; font-size: 12.5px; cursor: pointer; }
+.lrow.cur .lpick { border-color: #266268; box-shadow: inset 0 0 0 1px #266268; font-weight: 600; }
+.ldot { display: inline-block; width: 16px; color: var(--muted); }
+.ldot.d { color: #6b3f73; }
+.leye { min-height: 34px; min-width: 70px; border: 1px solid var(--line); border-radius: 7px; background: var(--paper); font-size: 11.5px; cursor: pointer; color: var(--muted); }
+.leye.on { color: #266268; border-color: #266268; }
+.leye.dim { opacity: .6; }
 .lane > .lane-head > .lh { display: none; }
 .lane > .lane-head > #laneUnit { max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #envTarget:disabled { display: none; }
@@ -495,6 +505,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
         <p class="note" id="presetNote" hidden></p>
         <label class="tog"><input type="checkbox" id="hear" checked> Hear while drawing</label>
         <label class="tog"><input type="checkbox" id="showAnn" checked> Show notes and annotations</label>
+        <label class="tog" title="Small marks on each unit for its drawn lanes: L loudness, P pan, S spread, 1–3 modulation. Tap one (Select tool) to edit that lane."><input type="checkbox" id="showMarks" checked> Show lane marks on units</label>
         <label class="ctl stack" for="scoreNotes">Score notes
           <textarea id="scoreNotes" rows="5" placeholder="Ideas, intentions, what to try next…"></textarea>
         </label>
@@ -512,7 +523,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
     <label>Name <input id="mrName" type="text" autocomplete="off" style="width: 14em" aria-label="Name"></label>
     <span class="selrow"><button class="btn primary" id="mrOk">Done</button><button class="btn warn" id="mrDel">Delete</button><button class="btn" id="mrCancel">Cancel</button></span></div>
   <div class="askbar" id="askBar" hidden><span id="askText"></span><span class="selrow" id="askBtns"></span></div>
-  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v70</span></div>
+  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v71</span></div>
 </div>
 
 <div class="laypop" id="layerDots" role="menu" aria-label="Layer to draw on" hidden></div>
@@ -1855,6 +1866,7 @@ function frame() {
   g.save(); { const xl = vt0() <= 1e-9 ? M.l - 10 : M.l; g.beginPath(); g.rect(xl, 0, W - M.r + 10 - xl, H); g.clip(); }
   if (live && live.stroke.kind === 'band') drawBand(g, live.stroke, true);
   if (liveAnn) drawAnn(g, liveAnn);
+  if (window.__lhMarks) window.__lhMarks.draw(g);   // v71
   if (liveLine && liveLine.px.length > 1) {
     g.strokeStyle = rgba(layerById(state.layer).hue, 0.9); g.lineWidth = 2; g.lineCap = 'round'; g.lineJoin = 'round';
     g.beginPath(); liveLine.px.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); g.stroke();
@@ -3056,6 +3068,7 @@ cv.addEventListener('wheel', e => {
 cv.addEventListener('pointerdown', e => {
   if (e.pointerType === 'pen') penSeen = true;
   const pt = local(e);
+  if (window.__lhMarks && inPlot(pt) && window.__lhMarks.hit(e, pt)) return;   // v71: tap a lane mark
   if (splitArm && inPlot(pt)) { splitArm = false; cv.style.cursor = ''; splitSel(TofX(pt.x)); requestDraw(); return; }   // v49.1: the Split button's cut
   if (pt.y < M.t - 2 && pt.x >= M.l - 6 && pt.x <= W - M.r + 6) { mrDown(e, pt); return; }   // v53: regions / markers lanes
   if (pt.y > H - M.b && pt.x >= M.l - 10 && pt.x <= W - M.r + 10) {   // the time ruler
@@ -6209,12 +6222,12 @@ function saveStack() { try { localStorage.setItem('lhLaneStack', JSON.stringify(
 const laneExists = (s, m) => m === 'vol' || m === 'pan' || m === 'spread' || !!(s && s.mods && s.mods[+m[3]]);
 function laneDrawn(s, m) {
   if (!s) return false;
-  if (m === 'vol') return true;
+  if (m === 'vol') return volDrawn(s);
   if (m === 'pan') return !!(s.pan_env && s.pan_env.length > 1);
   if (m === 'spread') return !!((s.spread_env && s.spread_env.length > 1) || s.space);
   return laneExists(s, m);
 }
-const stackKey = m => m.startsWith('mod') ? 'mod' : m;
+const stackKey = m => m;   // v71: each lane shows / hides on its own (the eye in the Lane menu)
 const laneShown = (s, m) => stackShow[stackKey(m)] != null ? stackShow[stackKey(m)] : laneDrawn(s, m);
 function laneName(s, m) {
   if (m === 'vol') return 'Loudness'; if (m === 'pan') return 'Pan'; if (m === 'spread') return 'Spread';
@@ -6285,6 +6298,59 @@ function drawStrips() {
     c.fillStyle = '#4a4038'; c.fillText(nm, x0 + 6, t + 9);
   });
 }
+// ---- v71: which lanes a unit has. ● = drawn, ○ = flat. The Lane menu lists them with an eye (show in the
+// stack); small marks on each unit in the score show its drawn lanes, and tapping a mark opens that lane.
+function volDrawn(s) {
+  const e = s && s.env; if (s && s.lfo) return true;
+  return !!(e && e.length > 1 && e.some(p => Math.abs(p[1] - e[0][1]) > 0.002));
+}
+const MARK_KEY = 'lhEnvMarks';
+let envMarks = true; try { envMarks = localStorage.getItem(MARK_KEY) !== '0'; } catch (e) { }
+const laneMark = m => m === 'vol' ? 'L' : m === 'pan' ? 'P' : m === 'spread' ? 'S' : String(+m[3] + 1);
+const drawnLanes = s => LANE_ORDER.filter(m => laneExists(s, m) && laneDrawn(s, m));
+let markRects = [];
+function drawEnvMarks(g) {
+  markRects = [];
+  if (!envMarks) return;
+  g.save(); g.font = '600 9.5px "IBM Plex Mono", ui-monospace, Menlo, monospace'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  for (const u of state.strokes) {
+    if (u.kind === 'splash' || !state.visible[u.layer] || layerMode(u.layer) !== 'full') continue;
+    const list = drawnLanes(u); if (!list.length) continue;
+    const b = strokeBox(u), sel = selSet().includes(u);
+    let x = Math.max(b.x0, M.l + 2), y = b.y0 - 14; if (y < M.t + 1) y = b.y0 + 2;
+    if (x > W - M.r) continue;
+    for (const m of list) {
+      const w = 13, h = 12, on = sel && state.laneMode === m;
+      g.globalAlpha = sel ? 1 : 0.72;
+      g.fillStyle = on ? '#266268' : '#6b3f73'; g.beginPath(); g.roundRect ? g.roundRect(x, y, w, h, 3) : g.rect(x, y, w, h); g.fill();
+      g.fillStyle = '#fff'; g.fillText(laneMark(m), x + w / 2, y + h / 2 + 0.5);
+      markRects.push({ x, y, w, h, u, m }); x += w + 2;
+    }
+  }
+  g.restore();
+}
+function envMarkHit(e, pt) {
+  if (!envMarks || !markRects.length) return false;
+  const touch = e.pointerType === 'touch', ok = touch || state.tool === 'select' || e.metaKey || e.ctrlKey;
+  if (!ok) return false;
+  const pad = touch ? 6 : 2;
+  const r = markRects.slice().reverse().find(r => pt.x >= r.x - pad && pt.x <= r.x + r.w + pad && pt.y >= r.y - pad && pt.y <= r.y + r.h + pad);
+  if (!r || !state.strokes.includes(r.u)) return false;
+  e.preventDefault();
+  pickUnit(r.u, false); renderInspector(); changed(true);
+  if (!layout.lane) togglePanel('lane');
+  setLaneMode(r.m); requestDraw();
+  status(`Editing the ${laneName(r.u, r.m)} lane of this unit.`);
+  return true;
+}
+window.__lhMarks = { draw: drawEnvMarks, hit: envMarkHit };
+window.__lhLane = {
+  sel: () => selUnit(), name: laneName, set: m => setLaneMode(m),
+  rows: s => LANE_ORDER.filter(m => laneExists(s, m)).map(m => ({ m, name: laneName(s, m), drawn: laneDrawn(s, m), shown: laneShown(s, m), cur: state.laneMode === m })),
+  eye: (s, m) => { const show = !laneShown(s, m); stackShow[stackKey(m)] = show; if (show && !stackOn) stackOn = true; saveStack(); renderStack(); return show; },
+  stackOn: () => stackOn,
+  marks: v => { if (v != null) { envMarks = !!v; try { localStorage.setItem(MARK_KEY, envMarks ? '1' : '0'); } catch (e) { } requestDraw(); } return envMarks; }
+};
 function drawLane() {
   if (!LW || !LHt) return;
   drawStrips();
@@ -7036,7 +7102,26 @@ resize();
   const bStack = mk('mStack', 'Stack ▾', "Show the unit's other lanes above the one you are editing");
   const bEdit = mk('mEdit', 'Edit ▾', 'Copy, paste, reduce points, delete point, reset, LFO');
   const pLane = pop('popLane'), pShape = pop('popShape'), pCurve = pop('popCurve'), pStack = pop('popStack'), pEdit = pop('popEdit');
-  head(pLane, 'Lane'); pLane.appendChild(segs); head(pLane, 'Modulation'); pLane.appendChild(modRow);
+  head(pLane, 'Lanes of this unit'); const laneList = document.createElement('div'); laneList.className = 'llist'; pLane.appendChild(laneList);
+  pLane.appendChild(segs); segs.hidden = true; $('modChips').hidden = true;
+  head(pLane, 'Modulation'); pLane.appendChild(modRow);
+  const LL = window.__lhLane;
+  const esc = t => String(t).replace(/[<>&"]/g, '');
+  const renderLaneList = () => {
+    const s = LL && LL.sel();
+    if (!s) { laneList.innerHTML = '<div class="segnote">Select a unit first.</div>'; return; }
+    const on = LL.stackOn();
+    laneList.innerHTML = LL.rows(s).map(r => `<div class="lrow${r.cur ? ' cur' : ''}">
+      <button class="lpick" data-lane="${r.m}" title="Edit this lane"><span class="ldot${r.drawn ? ' d' : ''}">${r.drawn ? '●' : '○'}</span>${esc(r.name)}</button>
+      <button class="leye${r.shown ? ' on' : ''}${on ? '' : ' dim'}" data-eye="${r.m}" aria-pressed="${r.shown}" title="${r.shown ? 'Shown' : 'Hidden'} in the stack. Tap to ${r.shown ? 'hide' : 'show'} it">${r.shown ? 'Shown' : 'Hidden'}</button></div>`).join('')
+      + '<div class="segnote">● drawn · ○ flat. Shown / Hidden = in the stack' + (on ? '.' : ' (the stack is off; showing a lane turns it on).') + '</div>';
+  };
+  laneList.addEventListener('click', e => {
+    const s = LL && LL.sel(); if (!s) return;
+    const p = e.target.closest('[data-lane]'), y = e.target.closest('[data-eye]');
+    if (p) { LL.set(p.dataset.lane); setTimeout(close, 0); return; }
+    if (y) { LL.eye(s, y.dataset.eye); renderLaneList(); }
+  });
   head(pShape, 'Shapes'); pShape.appendChild(shapeRow);
   head(pCurve, 'Curve'); pCurve.appendChild(curveRow);
   head(pStack, 'Stack'); row(pStack, ['laneStackBtn']); pStack.appendChild(stackRow);
@@ -7047,6 +7132,7 @@ resize();
   const close = () => menus.forEach(([b, p]) => { p.hidden = true; b.setAttribute('aria-expanded', 'false'); b.classList.remove('open'); });
   menus.forEach(([b, p]) => b.addEventListener('click', e => {
     e.stopPropagation(); const opening = p.hidden; close(); if (!opening) return;
+    if (p === pLane) renderLaneList();
     p.hidden = false; b.setAttribute('aria-expanded', 'true'); b.classList.add('open');
     const br = b.getBoundingClientRect(), xr = box.getBoundingClientRect();
     p.style.top = Math.round(br.bottom - xr.top + 4) + 'px';
@@ -7065,11 +7151,12 @@ resize();
   };
   new MutationObserver(upd).observe(box, { subtree: true, attributes: true, attributeFilter: ['class'], childList: true });
   upd();
+  const sm = $('showMarks'); if (sm && LL) { sm.checked = LL.marks(); sm.addEventListener('change', () => LL.marks(sm.checked)); }
 })();
 </script>
 
 <script>
-/* Standalone build v70-20261108-2126-f015a5: keep the app on the iPad so it opens with no internet. */
+/* Standalone build v71-20261108-2137-679c8b: keep the app on the iPad so it opens with no internet. */
 if ('serviceWorker' in navigator) window.addEventListener('load', () => {
   // an update downloads in the background; when it takes over, say so and offer a reload (the open sketch is kept on the iPad)
   const had = !!navigator.serviceWorker.controller;
