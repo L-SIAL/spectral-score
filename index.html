@@ -463,8 +463,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
         <h2>Sketch</h2>
         <input id="name" type="text" aria-label="Sketch name" autocomplete="off" placeholder="Sketch name">
         <div class="selrow"><button class="btn" id="open" title="Sketches on this iPad, or a file from iCloud (⌘O)">Open…</button><button class="btn" id="new">New</button></div>
-<div class="selrow"><button class="btn" id="saveAsNew" title="Save a copy under a new name; the original stays as it was (⇧⌘S)">Save as new…</button></div>
-<div class="selrow"><button class="btn" id="sendIC" title="Put a copy in iCloud Drive for the Mac">Send to iCloud…</button></div>
+<div class="selrow"><button class="btn" id="saveAsNew" title="Save a copy under a new name; the original stays as it was (⇧⌘S)">Save as new…</button><button class="btn" id="sendIC" title="Put a copy in iCloud Drive for the Mac">Send to iCloud…</button></div>
         <label class="ctl stack">Field
           <span class="selrow"><select id="fieldType"></select><select id="fieldRoot" aria-label="Field root"></select></span>
         </label>
@@ -7005,7 +7004,7 @@ resize();
 </script>
 
 <script>
-/* Standalone build v67-20261108-2006-fbb616: keep the app on the iPad so it opens with no internet. */
+/* Standalone build v67-20261108-2008-cdefed: keep the app on the iPad so it opens with no internet. */
 if ('serviceWorker' in navigator) window.addEventListener('load', () => {
   // an update downloads in the background; when it takes over, say so and offer a reload (the open sketch is kept on the iPad)
   const had = !!navigator.serviceWorker.controller;
