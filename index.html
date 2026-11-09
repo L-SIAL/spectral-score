@@ -148,7 +148,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
 .chip:disabled, .lane-head select:disabled { opacity: .45; cursor: default; }
 .tog.small { min-height: 34px; font-size: 12px; padding: 0 8px; }
 .lane-body { display: flex; min-width: 0; }
-/* v66: stacked lanes (the other lanes of the unit, above the one being edited) */
+/* v66: stacked lanes (the other lanes of the object, above the one being edited) */
 .lane-stack { max-height: calc(var(--stripH, 56px) * 3 + 4px); overflow-y: auto; border-bottom: 1px solid var(--line); -webkit-overflow-scrolling: touch; }
 .lstrip { display: flex; border-bottom: 1px solid var(--line); cursor: pointer; }
 .lstrip:last-child { border-bottom: 0; }
@@ -317,7 +317,9 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
 .sheet { width: min(640px, 100%); background: var(--sheet); border-radius: 12px; border: 1px solid var(--line); padding: 16px; display: grid; gap: 10px; }
 .sheet h3 { margin: 0; font-family: var(--font-display); font-size: 18px; }
 .sheet.help { width: min(980px, 100%); max-height: calc(100% - 32px); overflow-y: auto; box-sizing: border-box; }
-.helphead { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.helphead { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+#helpSearch { flex: 1 1 200px; min-width: 0; max-width: 360px; font: 15px var(--font-data); padding: 7px 10px; border: 1px solid var(--line, #c9bfae); border-radius: 8px; background: var(--paper, #fff); color: var(--ink); }
+.helpgrid .hx { display: none !important; }
 .helpgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px 24px; }
 .helpgrid h4 { margin: 0 0 6px; font-family: var(--font-data); font-size: 11px; font-weight: 500; letter-spacing: .1em; text-transform: uppercase; color: var(--teal); }
 .helpgrid dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 5px 12px; font-size: 13px; line-height: 1.4; }
@@ -364,9 +366,9 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
       <button data-tool="shape" aria-pressed="false" title="Shape editor (H)">Shape</button>
       <button data-tool="annotate" aria-pressed="false" title="Annotate: write, arrows, circles, notes (A)" aria-label="Annotate">✎</button>
     </div>
-    <button class="btn tgl" id="moveTgl" aria-pressed="false" title="Switch between drawing and selecting / moving units (S)">✥ Select / move</button>
+    <button class="btn tgl" id="moveTgl" aria-pressed="false" title="Switch between drawing and selecting / moving objects (S)">✥ Select / move</button>
     <button class="btn" id="layBtn" aria-haspopup="true" aria-expanded="false" title="Layer to draw on"><i class="laysw" id="laySw"></i><span id="layName">Breath</span> ▾</button>
-    <button class="btn" id="playUnit" title="Play just the selected unit once (⇧Space)" disabled>▶ Unit</button>
+    <button class="btn" id="playUnit" title="Play just the selected object once (⇧Space)" disabled>▶ Object</button>
     <button class="btn primary" id="play" title="Play the score (Space)">▶ Play</button>
     <span class="sp"></span>
     <button class="btn tgl" id="tglSide" aria-pressed="false" title="Settings panel (2)">Settings</button>
@@ -395,18 +397,18 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
       <section class="lane" id="laneBox" aria-label="Envelope" hidden>
         <div class="lane-head">
           <span class="lh">Envelope</span>
-          <span class="lu" id="laneUnit">No unit selected</span>
-          <span class="segbtns" role="group" aria-label="Envelope type"><button class="chip on" id="laneVol" aria-pressed="true" title="Loudness envelope">Loudness</button><button class="chip" id="lanePan" aria-pressed="false" title="Pan: the centre of the unit's voices, left to right across the unit">Pan</button><button class="chip" id="laneSpread" aria-pressed="false" title="Spread: how far the Spatialisation law spreads the voices, 0 = all at the centre">Spread</button></span>
-          <button class="chip" id="laneStackBtn" aria-pressed="false" title="Show the unit's other lanes stacked above the one you are editing; tap one to edit it">Stack</button>
+          <span class="lu" id="laneUnit">No object selected</span>
+          <span class="segbtns" role="group" aria-label="Envelope type"><button class="chip on" id="laneVol" aria-pressed="true" title="Loudness envelope">Loudness</button><button class="chip" id="lanePan" aria-pressed="false" title="Pan: the centre of the object's voices, left to right across the object">Pan</button><button class="chip" id="laneSpread" aria-pressed="false" title="Spread: how far the Spatialisation law spreads the voices, 0 = all at the centre">Spread</button></span>
+          <button class="chip" id="laneStackBtn" aria-pressed="false" title="Show the object's other lanes stacked above the one you are editing; tap one to edit it">Stack</button>
           <select id="envTarget" aria-label="Envelope for"></select>
-          <button class="chip" id="loopBtn">▶ Loop unit</button>
-          <button class="chip rec" id="recBtn" title="Play the unit once and record the fader">● Record</button>
+          <button class="chip" id="loopBtn">▶ Loop object</button>
+          <button class="chip rec" id="recBtn" title="Play the object once and record the fader">● Record</button>
           <button class="chip" id="copyEnv" title="Copy envelope (⌥⌘C)">Copy</button>
           <button class="chip" id="pasteEnv" title="Paste envelope (⌥⌘V)">Paste</button>
           <button class="chip" id="reduceBtn" title="Reduce the number of points">Reduce points…</button>
           <button class="chip" id="delPoint" title="Delete the selected point (⌫)">Delete point</button>
           <button class="chip" id="resetEnv" title="Flat line, no LFO">Reset</button>
-          <button class="chip lfo" id="lfoBtn" title="Tremolo / LFO on this unit">LFO</button>
+          <button class="chip lfo" id="lfoBtn" title="Tremolo / LFO on this object">LFO</button>
           <button class="chip lfo" id="secBtn" title="Drag across the lane to choose a section for the LFO (or ⇧-drag)">Section</button>
         </div>
         <div class="lane-head mod-row" id="modRow">
@@ -414,7 +416,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
           <span class="segbtns" id="modChips" role="group" aria-label="Modulation envelopes"></span>
           <select id="modParam" aria-label="Control this envelope modulates" hidden></select>
           <button class="chip" id="modDel" title="Remove this modulation envelope" hidden>Remove</button>
-          <button class="chip" id="modAdd" title="Add an envelope that moves one control of this layer's sound across the unit (up to 3 per unit)">+ Add envelope</button>
+          <button class="chip" id="modAdd" title="Add an envelope that moves one control of this layer's sound across the object (up to 3 per object)">+ Add envelope</button>
           <span class="segnote" id="modNote"></span>
         </div>
         <div class="lfo-row" id="lfoRow" hidden>
@@ -423,14 +425,14 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
           <label class="ten"><span id="lfoRateName">Cycles</span> <input type="range" id="lfoRate" min="0" max="1" step="0.001"><output id="lfoRateOut"></output></label>
           <label class="ten">Depth <input type="range" id="lfoAmp" min="0" max="60" step="0.5"><output id="lfoAmpOut"></output></label>
           <span class="segnote" id="lfoRangeNote"></span>
-          <button class="chip" id="lfoWhole" title="Apply the LFO across the whole unit">Whole unit</button>
+          <button class="chip" id="lfoWhole" title="Apply the LFO across the whole object">Whole object</button>
           <button class="chip" id="lfoMore">More ▸</button>
-          <button class="chip" id="lfoRemove" title="Remove the LFO from this unit">Remove</button>
+          <button class="chip" id="lfoRemove" title="Remove the LFO from this object">Remove</button>
         </div>
         <div class="lfo-row" id="lfoMoreRow" hidden>
           <label class="ten"><input type="checkbox" id="lfoRide"> Apply to the drawn envelope</label>
           <label class="ten" id="lfoBaseL">Baseline <input type="range" id="lfoBase" min="-60" max="0" step="0.5"><output id="lfoBaseOut"></output></label>
-          <button class="chip" id="lfoMode" title="Hz keeps the speed when the unit is stretched; cycles stretch with it">Rate: cycles</button>
+          <button class="chip" id="lfoMode" title="Hz keeps the speed when the object is stretched; cycles stretch with it">Rate: cycles</button>
           <label class="ten">Phase <input type="range" id="lfoPh" min="0" max="1" step="0.01"><output id="lfoPhOut"></output></label>
           <label class="ten" title="+ speeds up across the range, − slows down">Freq skew <input type="range" id="lfoFs" min="-1" max="1" step="0.01"><output id="lfoFsOut"></output></label>
           <label class="ten" title="+ grows across the range, − dies away">Amp skew <input type="range" id="lfoAs" min="-1" max="1" step="0.01"><output id="lfoAsOut"></output></label>
@@ -475,7 +477,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
         </div>
         <div class="lane-stack" id="laneStack" hidden></div>
         <div class="lane-body">
-          <canvas id="lane" aria-label="Envelope lane: loudness of the selected unit from its start to its end"></canvas>
+          <canvas id="lane" aria-label="Envelope lane: loudness of the selected object from its start to its end"></canvas>
           <div class="fader" id="fader" role="slider" tabindex="0" aria-label="Record fader" aria-valuemin="-60" aria-valuemax="0" aria-valuenow="0">
             <small>Fader</small>
             <div class="track" id="faderTrack"><div class="fill" id="faderFill"></div><div class="thumb" id="faderThumb"></div></div>
@@ -486,7 +488,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
     </div>
     <div class="split-v" id="splitV" role="separator" aria-orientation="vertical" aria-label="Drag to resize the settings panel" hidden></div>
     <aside class="side" id="side" data-stab="unit" hidden>
-      <div class="seg sidetabs" role="tablist" aria-label="Settings"><button data-stab="unit" aria-pressed="true" title="The selected unit, or the brush for the next one (⇧2 switches)">Unit</button><button data-stab="score" aria-pressed="false" title="Global settings for the score (⇧2 switches)">Score</button></div>
+      <div class="seg sidetabs" role="tablist" aria-label="Settings"><button data-stab="unit" aria-pressed="true" title="The selected object, or the brush for the next one (⇧2 switches)">Object</button><button data-stab="score" aria-pressed="false" title="Global settings for the score (⇧2 switches)">Score</button></div>
       <section class="sketch stab-score">
         <h2>Sketch</h2>
         <input id="name" type="text" aria-label="Sketch name" autocomplete="off" placeholder="Sketch name">
@@ -508,7 +510,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
         <p class="note" id="presetNote" hidden></p>
         <label class="tog"><input type="checkbox" id="hear" checked> Hear while drawing</label>
         <label class="tog"><input type="checkbox" id="showAnn" checked> Show notes and annotations</label>
-        <label class="tog" title="Small marks on each unit for its drawn lanes: L loudness, P pan, S spread, 1–3 modulation. Tap one (Select tool) to edit that lane."><input type="checkbox" id="showMarks" checked> Show lane marks on units</label>
+        <label class="tog" title="Small marks on each object for its drawn lanes: L loudness, P pan, S spread, 1–3 modulation. Tap one (Select tool) to edit that lane."><input type="checkbox" id="showMarks" checked> Show lane marks on objects</label>
         <label class="ctl stack" for="scoreNotes">Score notes
           <textarea id="scoreNotes" rows="5" placeholder="Ideas, intentions, what to try next…"></textarea>
         </label>
@@ -526,7 +528,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
     <label>Name <input id="mrName" type="text" autocomplete="off" style="width: 14em" aria-label="Name"></label>
     <span class="selrow"><button class="btn primary" id="mrOk">Done</button><button class="btn warn" id="mrDel">Delete</button><button class="btn" id="mrCancel">Cancel</button></span></div>
   <div class="askbar" id="askBar" hidden><span id="askText"></span><span class="selrow" id="askBtns"></span></div>
-  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v77</span></div>
+  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v78</span></div>
 </div>
 
 <div class="laypop" id="layerDots" role="menu" aria-label="Layer to draw on" hidden></div>
@@ -536,11 +538,11 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
 <input type="file" id="libFile" accept=".json,application/json" hidden>
 <div class="overlay" id="libBox" hidden role="dialog" aria-modal="true" aria-labelledby="libTitle">
   <div class="sheet lib">
-    <div class="labhead"><h3 id="libTitle">Unit library</h3><span class="note">Single units saved by name. Place puts a copy at the cursor (or the play point).</span><span class="sp"></span><button class="btn primary" id="libClose">Done</button></div>
+    <div class="labhead"><h3 id="libTitle">Object library</h3><span class="note">Single objects saved by name. Place puts a copy at the cursor (or the play point).</span><span class="sp"></span><button class="btn primary" id="libClose">Done</button></div>
     <div class="askbar" id="libAskBar" hidden style="margin-top:8px"><span id="libAskText"></span><span class="selrow" id="libAskBtns"></span></div>
     <div id="libList" class="liblist"></div>
     <h4>Library file</h4>
-    <p class="note">One file holds your saved units and your Sound Lab presets, to keep or to carry to another sketch. Sketches already carry both.</p>
+    <p class="note">One file holds your saved objects and your Sound Lab presets, to keep or to carry to another sketch. Sketches already carry both.</p>
     <div class="selrow"><button class="btn" id="libExport">Export library…</button><button class="btn" id="libImport">Import library…</button></div>
   </div>
 </div>
@@ -577,32 +579,33 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
 </div>
 <div class="overlay" id="helpBox" hidden role="dialog" aria-modal="true" aria-labelledby="helpTitle">
   <div class="sheet help">
-    <div class="helphead"><h3 id="helpTitle">How to use the sketchpad</h3><button class="btn" id="helpClose">Close</button></div>
+    <div class="helphead"><h3 id="helpTitle">How to use the sketchpad</h3><input type="search" id="helpSearch" placeholder="Search help and keys…" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Search help and keys"><button class="btn" id="helpClose">Close</button></div>
+    <p class="note" id="helpNone" hidden>Nothing matches. Try one word, or a key such as ⌘D.</p>
     <div class="helpgrid">
       <section><h4>Drawing and selecting</h4>
         <dl>
           <dt>Pencil stroke</dt><dd>draws a band (Band tool). Pressure = loudness, tilt = sine ↔ noise.</dd>
-          <dt>Quick Pencil tap</dt><dd>selects the unit under it instead of drawing.</dd>
-          <dt>Press and hold</dt><dd>on a unit with the Pencil picks it up; drag to move it.</dd>
+          <dt>Quick Pencil tap</dt><dd>selects the sound object under it instead of drawing.</dd>
+          <dt>Press and hold</dt><dd>on a sound object with the Pencil picks it up; drag to move it.</dd>
           <dt>⌘ + Pencil</dt><dd>selects in any tool; keep dragging to move. ⌘⌥ + drag moves a copy.</dd>
-          <dt>Finger tap</dt><dd>selects. Finger drag on the selected unit moves it. Fingers never draw.</dd>
+          <dt>Finger tap</dt><dd>selects. Finger drag on the selected sound object moves it. Fingers never draw.</dd>
           <dt>Impulse</dt><dd>Pencil tap stamps a chord burst from the field (called Splash before; the Mac calls it Impulse too).</dd>
           <dt>Block</dt><dd>drag a rectangle with the Pencil: the field lines inside it become a chord over that time (as on the Mac). Entry (chord, arpeggio, fan, strum) is in Settings.</dd>
           <dt>Pulse</dt><dd>drag across time with the Pencil: a train of short notes at that pitch (end higher or lower for a glide). Gaps in ms, accelerando, length, jitter, accent and partials are in Settings (as on the Mac).</dd>
           <dt>Line</dt><dd>draw with the Pencil: one voice that glides along the line (UPIC-style).</dd>
           <dt>Cloud</dt><dd>drag a rectangle: a seeded scatter of notes between its edges. Density, note lengths, fade and a new seed are in Settings.</dd>
           <dt>Layers</dt><dd>in Settings: tap a layer to draw on it (it is always shown in front). ● ◐ ○ = full · in the background · hidden. M = mute. Background all / Show all. Faded layers can't be selected.</dd>
-          <dt>✥ Select / move</dt><dd>switches the Pencil and trackpad from drawing to selecting and moving units; tap it again (or press S) to go back to drawing.</dd>
-          <dt>Settings: Unit | Score</dt><dd>Unit shows only the selected unit (or the brush for the next one); Score holds the global settings — sketch, field, duration, sound, layers. ⇧2 switches; selecting a unit or a drawing tool opens Unit.</dd>
+          <dt>✥ Select / move</dt><dd>switches the Pencil and trackpad from drawing to selecting and moving sound objects; tap it again (or press S) to go back to drawing.</dd>
+          <dt>Settings: Object | Score</dt><dd>Object shows only the selected sound object (or the brush for the next one); Score holds the global settings — sketch, field, duration, sound, layers. ⇧2 switches; selecting a sound object or a drawing tool opens Object.</dd>
           <dt>Pulse bend</dt><dd>select a pulse (Select or Shape): drag its end points up or down, drag a ⊕ to add a bend point, double-tap (or ⌥-tap) a bend point to remove it. Points snap to the field; ⌘ = free pitch.</dd>
-          <dt>Zoom</dt><dd>two fingers on the score: spread / pinch = zoom in / out, move = scroll. Hold ⌥ to zoom pitch only, ⌘ to zoom time only. On the trackpad: ⌘ + two-finger scroll zooms time, ⌥ + two-finger scroll zooms pitch, plain two-finger scroll moves around (pinch also works where the browser lets it through). Keys: ] [ zoom time in / out, ⌥] ⌥[ zoom pitch, 0 = whole score — they zoom about the cursor (or the selected unit) and bring it to the middle of the screen. Or drag on the axes: the time ruler up / down = zoom time (then sideways = scroll); the pitch labels at either side up / down = scroll pitch, right / left = zoom pitch.</dd>
-          <dt>Notes on / off</dt><dd>select a block or an impulse: its notes show as chips in Settings › Unit. Tap one to switch it off (it stays as a faint ghost, silent) or on again. ⌥-click a note on the score does the same.</dd>
+          <dt>Zoom</dt><dd>two fingers on the score: spread / pinch = zoom in / out, move = scroll. Hold ⌥ to zoom pitch only, ⌘ to zoom time only. On the trackpad: ⌘ + two-finger scroll zooms time, ⌥ + two-finger scroll zooms pitch, plain two-finger scroll moves around (pinch also works where the browser lets it through). Keys: ] [ zoom time in / out, ⌥] ⌥[ zoom pitch, 0 = whole score — they zoom about the cursor (or the selected sound object) and bring it to the middle of the screen. Or drag on the axes: the time ruler up / down = zoom time (then sideways = scroll); the pitch labels at either side up / down = scroll pitch, right / left = zoom pitch.</dd>
+          <dt>Notes on / off</dt><dd>select a block or an impulse: its notes show as chips in Settings › Object. Tap one to switch it off (it stays as a faint ghost, silent) or on again. ⌥-click a note on the score does the same.</dd>
           <dt>Chord (O)</dt><dd>drag across time to make a chord. While editing (Enter, or tap the chord with the Chord tool) tap in its column to add a note on the semitone grid, tap a note to remove it, drag a note to move it (⌥ = cents, ⌘ = free). Or type the notes in the panel: C3 E♭3 G3+14, MIDI 60.5, 440hz. The top / bottom handles stretch the spread (top keeps the bass, bottom keeps the top); dragging the chord up or down transposes by semitones (⌘ = free). Entry (chord, arps, fans, strum), velocity and envelope as for a block.</dd>
-          <dt>Start / end</dt><dd>in Select (or with ⌘, or a finger on a selected unit) drag a unit's left or right edge: the other end stays put and the content stretches to fit. With a group or several units selected, the whole selection stretches. ⌥-drag crops instead: the content stays in place (one unit).</dd>
+          <dt>Start / end</dt><dd>in Select (or with ⌘, or a finger on a selected sound object) drag a sound object's left or right edge: the other end stays put and the content stretches to fit. With a group or several sound objects selected, the whole selection stretches. ⌥-drag crops instead: the content stays in place (one sound object).</dd>
           <dt>Shape</dt><dd>drag the four corner handles; notes glide to follow the outline.</dd>
           <dt>Line / cloud points</dt><dd>select a line or cloud (Shape or Select) to see its points: drag one to move it, drag a ⊕ to add one, double-tap (or ⌥-tap) to remove one. In Shape, drag a cloud's edge line to move the whole edge. Line points snap to the field; hold ⌘ for free pitch.</dd>
           <dt>✎ Annotate</dt><dd>Write, Arrow, Circle, Note and Erase. Annotations sit on the score and make no sound.</dd>
-          <dt>Note icons</dt><dd>tap one to read or edit the note. Select a unit and press N (or Add note) to give it one.</dd>
+          <dt>Note icons</dt><dd>tap one to read or edit the note. Select a sound object and press N (or Add note) to give it one.</dd>
         </dl></section>
       <section><h4>Envelope panel (key 1)</h4>
         <dl>
@@ -610,42 +613,42 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
           <dt>Double-tap a point</dt><dd>deletes it (or tap it, then ⌫ / Delete point).</dd>
           <dt>Tap between points</dt><dd>picks a segment; drag its ◇ up or down to bend it.</dd>
           <dt>Draw freehand</dt><dd>starting away from the curve replaces that section.</dd>
-          <dt>● Record</dt><dd>plays the unit once while you ride the fader.</dd>
+          <dt>● Record</dt><dd>plays the sound object once while you ride the fader.</dd>
           <dt>Reduce points…</dt><dd>slide down to thin the curve; the ends stay.</dd>
           <dt>Shapes</dt><dd>Save shape… stores the envelope; tap a shape to load it.</dd>
-          <dt>Whole chord / a note</dt><dd>shape the unit, or give one note its own envelope.</dd>
-          <dt>Loudness · Pan</dt><dd>switch the lane between the loudness envelope and the unit's pan (top = right, middle = centre, bottom = left). Pan is drawn and edited the same way.</dd>
+          <dt>Whole chord / a note</dt><dd>shape the sound object, or give one note its own envelope.</dd>
+          <dt>Loudness · Pan</dt><dd>switch the lane between the loudness envelope and the sound object's pan (top = right, middle = centre, bottom = left). Pan is drawn and edited the same way.</dd>
           <dt>♪ Sound Lab (3)</dt><dd>in Settings: craft sounds from the REAPER synths (LH Breath so far). Hold the pads to play; moving a control on a REAPER preset makes your own copy. “Use on this layer” puts it in the score (Sound: Sine + Sound Lab presets).</dd>
-          <dt>LFO</dt><dd>adds a plain sine tremolo across the unit: shape, cycles, depth. More ▸ has the rest (Hz, phase, skews, tilt, baseline, soft edges, presets, Bake).</dd>
-          <dt>Section</dt><dd>then drag across the lane to put the LFO on part of the unit (⇧-drag with a keyboard). Drag the [ ] tabs at the foot of the lane to adjust it.</dd>
+          <dt>LFO</dt><dd>adds a plain sine tremolo across the sound object: shape, cycles, depth. More ▸ has the rest (Hz, phase, skews, tilt, baseline, soft edges, presets, Bake).</dd>
+          <dt>Section</dt><dd>then drag across the lane to put the LFO on part of the sound object (⇧-drag with a keyboard). Drag the [ ] tabs at the foot of the lane to adjust it.</dd>
         </dl></section>
       <section><h4>Playing</h4>
         <dl>
           <dt>Space</dt><dd>play or stop from the teal start marker.</dd>
-          <dt>● Tap a rhythm…</dt><dd>select a pulse; in Settings tap the pad (or press T) in rhythm, then Done. Stretch the unit to compress or expand the rhythm.</dd>
-          <dt>▶ Unit · ⇧Space</dt><dd>play just the selected unit once. New units don't play by themselves, so you can edit them first.</dd>
+          <dt>● Tap a rhythm…</dt><dd>select a pulse; in Settings tap the pad (or press T) in rhythm, then Done. Stretch the sound object to compress or expand the rhythm.</dd>
+          <dt>▶ Object · ⇧Space</dt><dd>play just the selected sound object once. New sound objects don't play by themselves, so you can edit them first.</dd>
           <dt>Tap markers (⇧T)</dt><dd>tap a structural rhythm with <kbd>P</kbd> (or the Tap pad); each tap is a time point. The first tap is TP0 at the play point, then TP1, TP2… Press Space first to tap along with the score (taps land at the playhead). Return = done, Esc = cancel. Settings › Score has the button.</dd>
           <dt>Regions / markers</dt><dd>the two slim lanes above the score. Tap the markers lane to add a marker (<kbd>⇧M</kbd> at the pointer); drag in the regions lane to make a region (<kbd>⇧R</kbd> from a time selection). Drag to move, drag a region's ends to resize, double-tap to name, ⌥-tap or <kbd>⌫</kbd> to delete. Saved with the sketch, listed in the Obsidian notes, and written to REAPER on Commit.</dd>
           <dt>Time ruler</dt><dd>tap or drag it to move the start marker. <kbd>,</kbd> <kbd>.</kbd> nudge it, Return goes to 0:00.</dd>
           <dt>Duration</dt><dd>in Settings. Changing it stretches or contracts the whole score (untick "Stretch" to keep material where it is).</dd>
-          <dt>L</dt><dd>loop (solo) the selected unit, or just the chosen note.</dd>
+          <dt>L</dt><dd>loop (solo) the selected sound object, or just the chosen note.</dd>
           <dt>Silent switch</dt><dd>turn it off on the iPad to hear the preview.</dd>
         </dl></section>
       <section><h4>Keyboard</h4>
         <dl class="keys2">
           <dt>B I K P U C V E H A</dt><dd>Band, Impulse, Block, Pulse, Line, Cloud, Select, Erase, Shape, Annotate</dd>
           <dt>S</dt><dd>switch between drawing and selecting / moving (under the left hand; M works too)</dd>
-          <dt>N</dt><dd>note for the selected unit</dd>
-          <dt>⌘C ⌘X ⌘V ⌘D</dt><dd>copy, cut, paste, duplicate a unit</dd>
-          <dt>/</dt><dd>split the selected unit at the pointer (clouds and pulses keep their notes)</dd>
-          <dt>⇧-drag the time ruler</dt><dd>time selection: two lines across the score (drag a line on the ruler to adjust). The bar at the top: Remove time (⇧⌫ — what's inside is deleted, units crossing the lines are cut, the rest closes up), Insert silence of that length at the left line (⇧I), Clear (Esc).</dd>
-          <dt>⇧I</dt><dd>insert silence at the pointer: a prompt asks the length (mm:ss:hh). Settings › Score › Insert silence… does the same at the play point. Everything later moves right; units crossing the point are split.</dd>
+          <dt>N</dt><dd>note for the selected sound object</dd>
+          <dt>⌘C ⌘X ⌘V ⌘D</dt><dd>copy, cut, paste, duplicate a sound object</dd>
+          <dt>/</dt><dd>split the selected sound object at the pointer (clouds and pulses keep their notes)</dd>
+          <dt>⇧-drag the time ruler</dt><dd>time selection: two lines across the score (drag a line on the ruler to adjust). The bar at the top: Remove time (⇧⌫ — what's inside is deleted, sound objects crossing the lines are cut, the rest closes up), Insert silence of that length at the left line (⇧I), Clear (Esc).</dd>
+          <dt>⇧I</dt><dd>insert silence at the pointer: a prompt asks the length (mm:ss:hh). Settings › Score › Insert silence… does the same at the play point. Everything later moves right; sound objects crossing the point are split.</dd>
           <dt>⌥⌘C ⌥⌘V</dt><dd>copy, paste just the envelope</dd>
-          <dt>⌫</dt><dd>delete the selected point, or the selected unit</dd>
-          <dt>⇧-click · drag a box</dt><dd>select several units: ⇧-click adds or removes one; in Select (V), or with ⌘ held, drag a box over empty score. ⌘A selects all.</dd>
-          <dt>⌘G · ⇧⌘G</dt><dd>group the selected units / ungroup. A group selects, moves, copies, duplicates, stretches and transposes as one (panel › Reshape), and saves to the unit library as one entry.</dd>
+          <dt>⌫</dt><dd>delete the selected point, or the selected sound object</dd>
+          <dt>⇧-click · drag a box</dt><dd>select several sound objects: ⇧-click adds or removes one; in Select (V), or with ⌘ held, drag a box over empty score. ⌘A selects all.</dd>
+          <dt>⌘G · ⇧⌘G</dt><dd>group the selected sound objects / ungroup. A group selects, moves, copies, duplicates, stretches and transposes as one (panel › Reshape), and saves to the object library as one entry.</dd>
           <dt>⌘Z ⇧⌘Z</dt><dd>undo, redo</dd>
-          <dt>← →  ↑ ↓</dt><dd>move the unit in time (0.1 s) or pitch (semitone); ⇧ for 1 s / octave</dd>
+          <dt>← →  ↑ ↓</dt><dd>move the sound object in time (0.1 s) or pitch (semitone); ⇧ for 1 s / octave</dd>
           <dt>R</dt><dd>record the envelope</dd>
           <dt>1 · 2 · F</dt><dd>Envelope panel, Settings panel, full screen</dd>
           <dt>⌘S</dt><dd>save the sketch</dd>
@@ -1389,7 +1392,7 @@ function unitNoteList(u) {
 }
 function toggleUnitNote(u, f) {
   const list = unitNoteList(u), it = list.find(x => Math.abs(1200 * Math.log2(x.f / f)) < 10); if (!it) return false;
-  if (it.on && list.filter(x => x.on).length < 2) { status('At least one note stays on. Delete the unit instead.'); return false; }
+  if (it.on && list.filter(x => x.on).length < 2) { status('At least one note stays on. Delete the object instead.'); return false; }
   pushUndo();
   if (u.kind === 'splash') {
     if (it.on) (u.notes_off = u.notes_off || []).push(+it.f.toFixed(2));
@@ -1832,7 +1835,7 @@ function drawMacUnits(c) {
     const x0 = X(b.t0), x1 = X(b.t1), y0 = Y(b.hi) - 4, y1 = Y(b.lo) + 4;
     c.fillStyle = 'rgba(120,115,105,0.07)'; c.fillRect(x0, y0, Math.max(2, x1 - x0), y1 - y0);
     c.strokeStyle = 'rgba(110,105,95,0.55)'; c.strokeRect(x0, y0, Math.max(2, x1 - x0), y1 - y0);
-    c.fillStyle = 'rgba(90,85,78,0.8)'; c.fillText((u.kind || 'unit') + ' (Mac)', x0 + 3, y0 - 3);
+    c.fillStyle = 'rgba(90,85,78,0.8)'; c.fillText((u.kind || 'object') + ' (Mac)', x0 + 3, y0 - 3);
   }
   c.restore();
 }
@@ -2712,7 +2715,7 @@ function removeTime(a, b) {
   if (state.length > b) state.length = state.length - gap; else if (state.length > a) state.length = a;
   state.length = clamp(+state.length.toFixed(3), 5, 1200); lenIn.value = mmss(state.length);
   tsel = null; hideTselBar(); setSelection([], null); changed(true);
-  status(`Removed ${fmtMSH(gap)} at ${fmtMSH(a)}: ${removed} unit${removed === 1 ? '' : 's'} deleted, ${moved} moved earlier${cut ? `, ${cut} cut at the lines` : ''} · score is now ${fmtMSH(state.length)}. Undo puts it back.`);
+  status(`Removed ${fmtMSH(gap)} at ${fmtMSH(a)}: ${removed} object${removed === 1 ? '' : 's'} deleted, ${moved} moved earlier${cut ? `, ${cut} cut at the lines` : ''} · score is now ${fmtMSH(state.length)}. Undo puts it back.`);
 }
 function insertSilence(t, gap) {
   if (!(t >= 0) || !(gap > 0)) return;
@@ -2740,7 +2743,7 @@ function insertSilence(t, gap) {
   for (const r of state.regions) { if (r.a >= t) { r.a = +(r.a + gap).toFixed(3); r.b = +(r.b + gap).toFixed(3); } else if (r.b > t) r.b = +(r.b + gap).toFixed(3); }
   if ((state.playFrom || 0) > t) state.playFrom = +(state.playFrom + gap).toFixed(3);
   changed(true);
-  status(`Inserted ${fmtMSH(gap)} of silence at ${fmtMSH(t)}: ${moved} unit${moved === 1 ? '' : 's'} moved later${cut ? `, ${cut} split at the gap` : ''} · score is now ${mmss(state.length)}. Undo puts it back.`);
+  status(`Inserted ${fmtMSH(gap)} of silence at ${fmtMSH(t)}: ${moved} object${moved === 1 ? '' : 's'} moved later${cut ? `, ${cut} split at the gap` : ''} · score is now ${mmss(state.length)}. Undo puts it back.`);
 }
 // v50.2: lengths and times as mm:ss:hh (minutes : seconds : hundredths), as the Mac
 const pad2 = n => String(n).padStart(2, '0');
@@ -2769,20 +2772,20 @@ function okSilence() {
 }
 let lastHoverT = null, splitArm = false;
 function armSplit() {
-  if (!selSet().length) { status('Select a unit first, then Split.'); return; }
+  if (!selSet().length) { status('Select a object first, then Split.'); return; }
   splitArm = true; cv.style.cursor = 'crosshair'; requestDraw();
   status('Split: click (or tap) on the score where you want the cut. Esc cancels.');
 }
 function splitSel(tIn) {
   const t = tIn != null ? tIn : (lastHoverT != null ? lastHoverT : state.playFrom || 0);
   const list = selSet().filter(u => { const [a, b] = unitSpan(u); return t > a + 0.03 && t < b - 0.03; });
-  if (!list.length) { status(selSet().length ? `Nothing to split at ${mmss(t)}: point inside the selected unit, then press /.` : 'Select a unit, point at where to cut, then press /.'); return; }
+  if (!list.length) { status(selSet().length ? `Nothing to split at ${mmss(t)}: point inside the selected object, then press /.` : 'Select a object, point at where to cut, then press /.'); return; }
   pushUndo();
   const imp = list.filter(u => u.kind === 'splash').length, right = [], ng = uid();
   for (const u of list) { const B = splitUnit(u, t); if (!B) continue; if (u.group) B.group = 'g' + ng; state.strokes.splice(state.strokes.indexOf(u) + 1, 0, B); right.push(B); }
   if (!right.length) { undoStack.pop(); status('An impulse can’t be split.'); return; }
   setSelection(right, right[right.length - 1]); changed(true);
-  status(`Split at ${mmss(t)}: ${right.length > 1 ? right.length + ' units' : 'the unit'} cut in two. The right-hand piece is selected — drag it where you want it.${imp ? ' (Impulses don’t split.)' : ''}`);
+  status(`Split at ${mmss(t)}: ${right.length > 1 ? right.length + ' objects' : 'the object'} cut in two. The right-hand piece is selected — drag it where you want it.${imp ? ' (Impulses don’t split.)' : ''}`);
 }
 // ---- v36: multi-selection and groups. state.selected = the unit last picked (its settings show in the panel);
 // state.multi = the other selected ids, valid only while state.multiFor === state.selected. u.group = a shared group id.
@@ -2848,7 +2851,7 @@ function moveTrim(pt) {
   d.moved = true;
   const nl = len * k;
   for (const it of d.items) { restoreUnit(it.u, it.o); d.crop ? cropUnit(it.u, d.side === 'end' ? d.a : d.b - nl, d.side === 'end' ? d.a + nl : d.b) : stretchUnit(it.u, pivot, k); }
-  document.getElementById('hud').textContent = `${d.side === 'end' ? 'End' : 'Start'} ${mmss(d.side === 'end' ? d.a + nl : d.b - nl)} · length ${nl.toFixed(2)} s · ${d.crop ? 'crop' : '×' + k.toFixed(2)}${d.items.length > 1 ? ' · ' + d.items.length + ' units' : ''}`;
+  document.getElementById('hud').textContent = `${d.side === 'end' ? 'End' : 'Start'} ${mmss(d.side === 'end' ? d.a + nl : d.b - nl)} · length ${nl.toFixed(2)} s · ${d.crop ? 'crop' : '×' + k.toFixed(2)}${d.items.length > 1 ? ' · ' + d.items.length + ' objects' : ''}`;
   dirty = true; requestDraw();
 }
 // ⌥-drag = crop: the content stays where it is in time; shortening cuts it, lengthening holds the last value.
@@ -2889,7 +2892,7 @@ function cloneList(list) {
 function multiHead() {
   const list = selSet(); if (list.length < 2) return '';
   const grouped = list.every(u => u.group && u.group === list[0].group), [a, b] = selBounds(list);
-  return `<section class="multi"><h2>${list.length} units selected${grouped ? ' · grouped' : ''}</h2>
+  return `<section class="multi"><h2>${list.length} objects selected${grouped ? ' · grouped' : ''}</h2>
     <p class="note">${mmss(a)}–${mmss(b)} · drag any of them to move all · ⇧-click adds or removes · the settings below are for the one picked last.</p>
     <div class="selrow" style="margin:6px 0"><button class="btn primary" id="mGroup" ${grouped ? 'disabled' : ''}>Group (⌘G)</button><button class="btn" id="mUngroup" ${list.some(u => u.group) ? '' : 'disabled'}>Ungroup (⇧⌘G)</button></div>
     <div class="selrow" style="margin:6px 0"><button class="btn" id="mDup">Duplicate</button><button class="btn" id="mCopy">Copy</button><button class="btn" id="mLib">Save to library</button><button class="btn warn" id="mDel">Delete</button></div>
@@ -2904,13 +2907,13 @@ function wireMultiHead() {
   document.querySelectorAll('[data-tr]').forEach(b => b.addEventListener('click', () => transposeSel(+b.dataset.tr)));
 }
 function groupSel() {
-  const list = selSet(); if (list.length < 2) { status('Select two or more units first (⇧-click, or drag a box in Select), then ⌘G.'); return; }
+  const list = selSet(); if (list.length < 2) { status('Select two or more objects first (⇧-click, or drag a box in Select), then ⌘G.'); return; }
   pushUndo(); const g = 'g' + uid(); for (const u of list) u.group = g; changed(true);
-  status(`Grouped ${list.length} units. They select, move, copy and stretch together. ⇧⌘G ungroups.`);
+  status(`Grouped ${list.length} objects. They select, move, copy and stretch together. ⇧⌘G ungroups.`);
 }
 function ungroupSel() {
   const list = selSet().filter(u => u.group); if (!list.length) { status('Nothing grouped is selected.'); return; }
-  pushUndo(); for (const u of list) delete u.group; changed(true); status(`Ungrouped ${list.length} units. They stay selected.`);
+  pushUndo(); for (const u of list) delete u.group; changed(true); status(`Ungrouped ${list.length} objects. They stay selected.`);
 }
 function stretchSel(k) {
   const list = selSet(); if (!list.length) return;
@@ -2958,7 +2961,7 @@ function libMerge(local, incoming, dels, norm) {
   for (let i = local.length - 1; i >= 0; i--) if (local[i] && gone(local[i])) { local.splice(i, 1); out.removed++; }
   return out;
 }
-const libNormUnit = x => (x.unit && x.unit.kind) ? Object.assign({ id: x.id, name: String(x.name || 'Unit'), saved: x.saved || '', unit: x.unit }, x.units ? { units: x.units } : {}, x.modified ? { modified: x.modified } : {}) : null;
+const libNormUnit = x => (x.unit && x.unit.kind) ? Object.assign({ id: x.id, name: String(x.name || 'Object'), saved: x.saved || '', unit: x.unit }, x.units ? { units: x.units } : {}, x.modified ? { modified: x.modified } : {}) : null;
 function saveUnitLib() { libStamp(unitLib); try { localStorage.setItem('lh-ipad-unit-library-v1', JSON.stringify(unitLib)); } catch (e) { } }
 function mergeUnitLib(list, dels) {
   const r = libMerge(unitLib, list, dels, libNormUnit);
@@ -2971,7 +2974,7 @@ function startDrag(u, t, f, copy) {
   let list = selSet(); if (!list.includes(u)) list = groupOf(u);
   if (copy) {
     var srcList = list, srcU = u; const cs = cloneList(list); state.strokes.push(...cs); u = cs[list.indexOf(u)]; list = cs; var copies = cs;
-    status(list.length > 1 ? `Copied ${list.length} units. Drag them into place.` : 'Copy made. Drag it into place.');
+    status(list.length > 1 ? `Copied ${list.length} objects. Drag them into place.` : 'Copy made. Drag it into place.');
   }
   setSelection(list, u); renderInspector();
   drag = { copies: copies || null, src: copies ? [srcList, srcU] : null, s: u, start: { t, f }, px0: { x: X(t), y: Y(f) }, orig: JSON.parse(JSON.stringify(u)),
@@ -3336,7 +3339,7 @@ function finishMarquee() {
   const hits = state.strokes.filter(u => state.visible[u.layer] && layerMode(u.layer) === 'full' && (b => b.x1 >= x0 && b.x0 <= x1 && b.y1 >= y0 && b.y0 <= y1)(strokeBox(u)));
   const all = (r.add ? selSet() : []).concat(...hits.map(groupOf));
   setSelection(all); changed(true);
-  status(all.length ? `${selSet().length} unit(s) selected. ⌘G groups them; drag any of them to move all.` : 'Nothing there.');
+  status(all.length ? `${selSet().length} object(s) selected. ⌘G groups them; drag any of them to move all.` : 'Nothing there.');
 }
 cv.addEventListener('pointerup', endPointer);
 cv.addEventListener('pointercancel', endPointer);
@@ -3352,17 +3355,17 @@ function eraseAt(pt) {
 }
 
 function hint() {
-  return { band: 'Band: draw with the Pencil (pressure = loudness, tilt = sine ↔ noise). Tap a unit to select it; drag it with a finger.',
-    splash: 'Impulse: tap with the Pencil to stamp a chord burst. Press S (or ✥ Select / move) to move units with the Pencil.',
+  return { band: 'Band: draw with the Pencil (pressure = loudness, tilt = sine ↔ noise). Tap a object to select it; drag it with a finger.',
+    splash: 'Impulse: tap with the Pencil to stamp a chord burst. Press S (or ✥ Select / move) to move objects with the Pencil.',
     line: 'Line: draw one gliding voice with the Pencil (UPIC-style). Hold ⇧ for a straight line. S to move it.',
     arc: 'Arc: drag from where it starts to where it ends. ⌥ = S-curve, ⇧ = both ends at the same pitch. Drag the round handles to bend it, the ◆ handle up to widen it from a tone into a band.',
     cloud: 'Cloud: drag a rectangle for a scatter of notes between its edges. Density, lengths and a new seed are in Settings.',
     pulse: 'Pulse: drag across time with the Pencil (end higher or lower for a glide; hold ⇧ to keep it flat). Gaps, accelerando and partials are in Settings. S to move it.',
     chord: 'Chord: drag across time to make a chord, then tap pitches in its column to add or remove notes (⌘ = off the semitone grid). Type notes in the panel. Enter = edit / done.',
     block: 'Block: drag a rectangle with the Pencil; the field lines inside it become a chord. Press S to move it.',
-    select: 'Select / move: tap a unit to select it, drag it with the Pencil or trackpad to move it, ⌥-drag to copy it. S goes back to drawing.',
-    erase: 'Erase: tap or rub over a unit with the Pencil.',
-    shape: 'Shape: tap a unit, then drag its handles. Bands, blocks, impulses: corners and edge points; ⊕ adds a point, double-tap removes one. Lines: drag a point, ⊕ adds one, double-tap removes one. Clouds: the same for edge points; drag an edge line to move the whole edge.',
+    select: 'Select / move: tap a object to select it, drag it with the Pencil or trackpad to move it, ⌥-drag to copy it. S goes back to drawing.',
+    erase: 'Erase: tap or rub over a object with the Pencil.',
+    shape: 'Shape: tap a object, then drag its handles. Bands, blocks, impulses: corners and edge points; ⊕ adds a point, double-tap removes one. Lines: drag a point, ⊕ adds one, double-tap removes one. Clouds: the same for edge points; drag an edge line to move the whole edge.',
     annotate: 'Annotate: write, draw arrows and circles, or add notes. Annotations make no sound.' }[state.tool];
 }
 function updateHud(pt, e) {
@@ -3395,13 +3398,13 @@ function toJSON() {
     layer_set: 2,
     layers: LAYERS.map(l => Object.assign({}, l, { visible: (state.view[l.id] || 'full') !== 'hidden', view: state.view[l.id] || 'full', mute: !!state.mute[l.id], solo: !!state.solo[l.id], planned: !!l.planned })),
     point_format: ['time_s', 'freq_hz', 'pressure_0_1', 'tilt_0_1'],
-    envelope_format: 'env and note_env points are [position 0-1 across the unit, loudness 0-1, curve, tension 0-1]; curve shapes the segment to the next point. They stretch with the unit. note_env is keyed by partial Hz and overrides env for that note. Loudness is on a 60 dB scale (1 = 0 dB, 0.5 = −30 dB, 0 = −60 dB/off) and maps to CC11/43.',
-    mod_format: 'mods (optional, per unit, up to 3) = [{ k: control key, s: plug-in slider number, e: engine, l: label, pts }]; pts are [position 0-1 across the unit, value 0-1 across the control range (log controls on a log scale), curve, tension] and give the control its value over time (they replace the preset value). Intended for per-channel 14-bit CC pairs on the Mac (slot 1 CC 16/48, slot 2 CC 17/49, slot 3 CC 18/50; slot target = slider number on CC 102/103/104).',
-    pan_format: 'pan_env (optional, per unit) points are [position 0-1 across the unit, pan 0-1 (0 = left, 0.5 = centre, 1 = right), curve, tension]; same curves as env. Absent = centre. Intended for per-channel CC10 on the Mac.',
-    space_format: 'v65 Spatialisation. space (optional, per unit) = {law: centre|pitch|pitch_rev|fan|oddeven|zones|golden|entry|random, spread 0-1, rotate (turns across the unit), pattern: fixed|pingpong|sweep|walk|random|cycle, step 0-1, seed}. spread_env = [position, spread 0-1, curve, tension]. Each voice gets its own azimuth (centre from pan_env, plus spread x its law position x 90 deg, plus rotation); the Mac writes it as 14-bit CC10/42 on the voice\'s own MIDI channel, CC105 = 1.',
+    envelope_format: 'env and note_env points are [position 0-1 across the object, loudness 0-1, curve, tension 0-1]; curve shapes the segment to the next point. They stretch with the object. note_env is keyed by partial Hz and overrides env for that note. Loudness is on a 60 dB scale (1 = 0 dB, 0.5 = −30 dB, 0 = −60 dB/off) and maps to CC11/43.',
+    mod_format: 'mods (optional, per object, up to 3) = [{ k: control key, s: plug-in slider number, e: engine, l: label, pts }]; pts are [position 0-1 across the object, value 0-1 across the control range (log controls on a log scale), curve, tension] and give the control its value over time (they replace the preset value). Intended for per-channel 14-bit CC pairs on the Mac (slot 1 CC 16/48, slot 2 CC 17/49, slot 3 CC 18/50; slot target = slider number on CC 102/103/104).',
+    pan_format: 'pan_env (optional, per object) points are [position 0-1 across the object, pan 0-1 (0 = left, 0.5 = centre, 1 = right), curve, tension]; same curves as env. Absent = centre. Intended for per-channel CC10 on the Mac.',
+    space_format: 'v65 Spatialisation. space (optional, per object) = {law: centre|pitch|pitch_rev|fan|oddeven|zones|golden|entry|random, spread 0-1, rotate (turns across the object), pattern: fixed|pingpong|sweep|walk|random|cycle, step 0-1, seed}. spread_env = [position, spread 0-1, curve, tension]. Each voice gets its own azimuth (centre from pan_env, plus spread x its law position x 90 deg, plus rotation); the Mac writes it as 14-bit CC10/42 on the voice\'s own MIDI channel, CC105 = 1.',
     envelope_curves: { lin: 'linear (REAPER CC shape 1)', exp: 'slow start, fast end (REAPER CC shape 4, fast end; tension sets steepness)', log: 'fast start, slow end (REAPER CC shape 3, fast start)', s: 'slow start and end (REAPER CC shape 2)', smooth: 'monotone spline through the points (REAPER CC shape 5, bezier, or dense CCs)', hold: 'step (REAPER CC shape 0, square)' },
     shape_library: userShapes,
-    outline_format: 'shape (optional) = { base_hz: [lo, hi], left_hz: [lo, hi], right_hz: [lo, hi] }. Each note keeps its relative log position between the lower and upper edge; the edges run straight from the unit start (left) to its end (right). Write as 14-bit pitch bend glissandi, one note per channel.',
+    outline_format: 'shape (optional) = { base_hz: [lo, hi], left_hz: [lo, hi], right_hz: [lo, hi] }. Each note keeps its relative log position between the lower and upper edge; the edges run straight from the object start (left) to its end (right). Write as 14-bit pitch bend glissandi, one note per channel.',
     strokes: state.strokes.concat(state.macUnits || []),
     ipad_sounds: { note: 'Sound Lab presets per layer. assign = {layer id: preset id}. Each preset: engine (iPad id), params (named), mac = {engine: Score Tool engine id, sliders: {JSFX slider number: value}}; the Mac Commit sets those sliders on the layer\'s synth (param index = slider - 1). mode is the iPad preview only.', mode: state.wave,
       assign: state.layerSound, presets: allSounds().filter(p => Object.values(state.layerSound).includes(p.id)).map(soundForFile) },
@@ -3415,7 +3418,7 @@ function toJSON() {
     markers: state.markers, regions: state.regions,
     marker_format: 'markers [{id, t, name, kind?}] (kind TP = tapped time points, labelled TP0, TP1… in time order) and regions [{id, a, b, name}] in seconds from the score start; Commit writes them as REAPER project markers and regions.',
     annotations: state.annotations,
-    annotation_format: "Score-anchored annotations in time_s / freq_hz: ink {pts:[[t,f,weight]]}, arrow {a:[t,f], b:[t,f]}, circle {a:[t,f], b:[t,f]} (ellipse in that box), note {t, f, text, at}. A unit's own note is its 'note' field (note_at = when it was written). at / note_at / score_notes_at are local 'YYYY-MM-DD HH:MM' stamps. On the Mac: unit notes -> item notes, note pins -> markers, score notes -> project notes.",
+    annotation_format: "Score-anchored annotations in time_s / freq_hz: ink {pts:[[t,f,weight]]}, arrow {a:[t,f], b:[t,f]}, circle {a:[t,f], b:[t,f]} (ellipse in that box), note {t, f, text, at}. A sound object's own note is its 'note' field (note_at = when it was written). at / note_at / score_notes_at are local 'YYYY-MM-DD HH:MM' stamps. On the Mac: object notes -> item notes, note pins -> markers, score notes -> project notes.",
   };
   if (state.macField) out.field = state.macField;          // a Mac-only field (e.g. Scala, EDO) goes back unchanged
   Object.assign(out, state.macExtra || {});
@@ -3468,7 +3471,7 @@ function fromJSON(d) {
   for (const u of state.strokes) if (u.kind === 'line') { u.params = Object.assign({ velocity: 0.8 }, u.params || {}); u.points.sort((a, b) => a[0] - b[0]); }
   for (const u of state.strokes) if (u.kind === 'cloud') { u.params = Object.assign({}, state.defaults.cloud, { seed: 1 }, u.params || {}); u.dur_s = +u.dur_s || 4; u.t_s = +u.t_s || 0; }
   for (const u of state.strokes) if (u.kind === 'pulse') { u.params = Object.assign({}, state.defaults.pulse, { seed: 1 }, u.params || {}); u.dur_s = +u.dur_s || 4; u.t_s = +u.t_s || 0; }
-  setTimeout(() => { let n = 0; for (const u of state.strokes) { try { const a = unitSpan(u)[0]; if (a < -1e-6) { shiftUnit(u, -a, 1); n++; } } catch (e) { } } if (n) { changed(false); status(`${n} unit(s) started before 0:00 and were moved to 0:00.`); } }, 0);   // v56
+  setTimeout(() => { let n = 0; for (const u of state.strokes) { try { const a = unitSpan(u)[0]; if (a < -1e-6) { shiftUnit(u, -a, 1); n++; } } catch (e) { } } if (n) { changed(false); status(`${n} object(s) started before 0:00 and were moved to 0:00.`); } }, 0);   // v56
   for (const u of state.strokes) if (u.kind === 'block') { u.params = Object.assign({ entry: 'chord', arp_s: 0.12, velocity: 0.8, seed: 1 }, u.params || {}); u.dur_s = +u.dur_s || 2; u.t_s = +u.t_s || 0; }
   state.macUnits = d.strokes.filter(s => s && !state.strokes.includes(s));
   state.macLayers = [];
@@ -3724,7 +3727,7 @@ function openRec(rec) {
   catch (e) { undoStack.pop(); status(`“${rec.name}” couldn't be opened.`, true); return; }
   state.sketchId = rec.id; state.name = rec.name; curRec = rec;
   syncControls(); renderCurName(); fitView(); changed(true); markSaved(); closeStore();
-  status(`Opened “${rec.name}”, saved ${fmtWhen(rec.saved)}.` + ((state.macUnits && state.macUnits.length) ? ` ${state.macUnits.length} Mac unit(s) kept, shown as faint outlines: edit them on the Mac.` : ''));
+  status(`Opened “${rec.name}”, saved ${fmtWhen(rec.saved)}.` + ((state.macUnits && state.macUnits.length) ? ` ${state.macUnits.length} Mac object(s) kept, shown as faint outlines: edit them on the Mac.` : ''));
 }
 async function renderStore() {
   const box = document.getElementById('storeList'), list = (await skAll()).sort((a, b) => tms(b.saved) - tms(a.saved));
@@ -3737,7 +3740,7 @@ async function renderStore() {
     const cur = r.id === state.sketchId, sentOk = isSent(r);
     const nUnits = (r.data && Array.isArray(r.data.strokes)) ? r.data.strokes.length : 0;
     return `<div class="skrow${cur ? ' cur' : ''}" data-id="${esc2(r.id)}"><div><b>${esc2(r.name)}</b>${cur ? ' <small style="display:inline">· open now</small>' : ''}
-      <small>Saved ${fmtWhen(r.saved)} · ${nUnits} unit(s) · ${sentOk ? 'sent to iCloud ' + fmtWhen(r.sent) : r.sent ? '<span class="uns">changed since sent ' + fmtWhen(r.sent) + '</span>' : '<span class="uns">not sent to iCloud yet</span>'}</small></div>
+      <small>Saved ${fmtWhen(r.saved)} · ${nUnits} object(s) · ${sentOk ? 'sent to iCloud ' + fmtWhen(r.sent) : r.sent ? '<span class="uns">changed since sent ' + fmtWhen(r.sent) + '</span>' : '<span class="uns">not sent to iCloud yet</span>'}</small></div>
       <div class="selrow">${cur ? '' : '<button class="btn primary" data-act="open">Open</button>'}<button class="btn" data-act="send">Send…</button><button class="btn warn" data-act="del">Remove</button></div></div>`;
   }).join('');
   box.querySelectorAll('.skrow').forEach(row => {
@@ -3800,7 +3803,7 @@ async function openFileData(d, fname, rec, keepNewer) {
   curRec = { id: state.sketchId, name: state.name, saved: at, sent: at, sentSaved: at, data, from: d.saved_on || (/Mac/.test(d.app || '') ? 'Mac' : '') };   // it came from iCloud, so that version is there
   try { await skPut(curRec); } catch (e) { }
   markSaved(); closeStore();
-  status(`Opened ${fname}${d.saved_on || /Mac/.test(d.app || '') ? ' (saved on the ' + (d.saved_on || 'Mac') + ' ' + fmtWhen(d.modified) + ')' : ''}. It's kept on this iPad now.` + libNews(lastLibMerge) + (keepNewer ? ' The newer iPad copy is still in the list.' : '') + ((state.macUnits && state.macUnits.length) ? ` ${state.macUnits.length} Mac unit(s) kept, shown as faint outlines: edit them on the Mac.` : ''));
+  status(`Opened ${fname}${d.saved_on || /Mac/.test(d.app || '') ? ' (saved on the ' + (d.saved_on || 'Mac') + ' ' + fmtWhen(d.modified) + ')' : ''}. It's kept on this iPad now.` + libNews(lastLibMerge) + (keepNewer ? ' The newer iPad copy is still in the list.' : '') + ((state.macUnits && state.macUnits.length) ? ` ${state.macUnits.length} Mac object(s) kept, shown as faint outlines: edit them on the Mac.` : ''));
 }
 document.getElementById('open').addEventListener('click', () => openStore());
 fileIn.addEventListener('change', () => {
@@ -3926,7 +3929,7 @@ lenIn.addEventListener('change', () => {
     state.length = nl; lenIn.value = mmss(nl);
     if (state.playFrom > nl) state.playFrom = 0;
     const beyond = state.strokes.filter(u => unitSpan(u)[0] >= nl).length;
-    status(beyond ? `Duration ${mmss(nl)}, material unchanged. ${beyond} unit${beyond === 1 ? ' starts' : 's start'} after the end and won't show or play until you lengthen it again.` : `Duration ${mmss(nl)}, material unchanged.`);
+    status(beyond ? `Duration ${mmss(nl)}, material unchanged. ${beyond} object${beyond === 1 ? ' starts' : 's start'} after the end and won't show or play until you lengthen it again.` : `Duration ${mmss(nl)}, material unchanged.`);
   }
   changed(true);
 });
@@ -3954,7 +3957,7 @@ document.querySelectorAll('[data-tool]').forEach(b => b.addEventListener('click'
 // one switch between drawing and selecting / moving, for the Pencil and the trackpad
 function toggleMove() {
   if (state.tool === 'select') { setTool(state.lastDraw || 'band'); status('Drawing again.'); }
-  else { setTool('select'); status('Select / move: drag units with the Pencil or trackpad. S or the button goes back to drawing.'); }
+  else { setTool('select'); status('Select / move: drag objects with the Pencil or trackpad. S or the button goes back to drawing.'); }
 }
 document.getElementById('moveTgl').addEventListener('click', toggleMove);
 
@@ -4019,7 +4022,7 @@ function tapFinish() {
   u.taps = tp.times.map(t => +((t - t0) / dur).toFixed(5));
   u.dur_s = +dur.toFixed(3);
   changed(true);
-  status(`Tapped ${tp.times.length} pulses over ${dur.toFixed(2)} s. Stretch the unit to compress or expand the rhythm; ▶ Unit to hear it.`);
+  status(`Tapped ${tp.times.length} pulses over ${dur.toFixed(2)} s. Stretch the object to compress or expand the rhythm; ▶ Object to hear it.`);
 }
 Object.assign(window.__lh, { unitVoices: (u, k) => unitVoices(u, k), spaceHome: (sp, vs) => spaceHome(sp, vs), setLaneMode: m => setLaneMode(m), renderInspector: () => renderInspector() });   // v65 test hooks
 Object.assign(window.__lh, { selectVoices: (v, f) => selectVoices(v, f), voiceCost: (x, i) => voiceCost(x, i), strokes: () => state.strokes, presets: () => GEN_PRESETS, setSound: (layer, id) => { state.wave = 'presets'; state.layerSound[layer] = id; }, layers: () => LAYERS.map(l => l.id), ac: () => ac, playing: () => playing, setDetail: d => { playDetail = d; } });   // v72 test hooks
@@ -4122,12 +4125,12 @@ function renderInspector() {
       <label class="lhue" title="Layer colour" style="background:${l.hue}"><input type="color" data-hue="${l.id}" value="${l.hue}" aria-label="Colour of ${esc2(l.name)}"></label>
       <span class="lmain"><input class="lname" data-lname="${l.id}" value="${esc2(l.name)}" aria-label="Layer name" autocomplete="off" spellcheck="false">
         <span class="lsrow"><span>Sound</span><select class="lsound" data-lsound="${l.id}" aria-label="Sound of ${esc2(l.name)}">${layerSoundOptions(l.id)}</select></span>
-        <small>${act ? 'drawing here · ' : ''}${state.strokes.filter(u => u.layer === l.id).length} units</small></span>
+        <small>${act ? 'drawing here · ' : ''}${state.strokes.filter(u => u.layer === l.id).length} objects</small></span>
       <span class="selrow lbtns">
         <button class="eye" data-eye="${l.id}" ${act ? 'disabled' : ''} aria-label="${esc2(l.name)}: ${VIEW_WORD[md]}" title="Full · faded into the background · hidden">${VIEW_ICON[md]}</button>
         <button class="eye" data-mute="${l.id}" aria-pressed="${!state.mute[l.id]}" aria-label="Mute ${esc2(l.name)}" title="Mute: silent when you Play">M</button>
         <button class="eye solo" data-solo="${l.id}" aria-pressed="${!!state.solo[l.id]}" aria-label="Solo ${esc2(l.name)}" title="Solo: hear only the soloed layers">S</button>
-        ${LAYERS.length > 1 ? `<button class="eye" data-ldel="${l.id}" aria-label="Remove ${esc2(l.name)}" title="Remove this layer (only when it has no units)">✕</button>` : ''}
+        ${LAYERS.length > 1 ? `<button class="eye" data-ldel="${l.id}" aria-label="Remove ${esc2(l.name)}" title="Remove this layer (only when it has no objects)">✕</button>` : ''}
       </span>
     </div>`; }).join('') + `<div class="selrow" style="margin-top:6px"><button class="btn" id="addLayer">+ Add layer</button></div>`;
   const sliders = defs.map(p => `
@@ -4158,7 +4161,7 @@ function renderInspector() {
          <button class="btn" data-preset="fan">Fan out</button>
          <button class="btn" data-preset="reset">Block</button>
        </div>`}`
-    : `<h2>${arcMode ? 'Arc' : KindName(kind)} brush · next ${kind === 'band' ? 'stroke' : 'one'}</h2><div class="selrow" style="margin-bottom:10px">${clip ? '<button class="btn" id="pasteBtn">Paste</button>' : ''}<button class="btn" id="libOpenBtn">Unit library… (Y)</button></div>`;
+    : `<h2>${arcMode ? 'Arc' : KindName(kind)} brush · next ${kind === 'band' ? 'stroke' : 'one'}</h2><div class="selrow" style="margin-bottom:10px">${clip ? '<button class="btn" id="pasteBtn">Paste</button>' : ''}<button class="btn" id="libOpenBtn">Object library… (Y)</button></div>`;
   const nBands = state.strokes.filter(s => s.kind === 'band').length, nBlk = state.strokes.filter(s => s.kind === 'block').length, nPul = state.strokes.filter(s => s.kind === 'pulse').length, nLin = state.strokes.filter(s => s.kind === 'line').length, nCld = state.strokes.filter(s => s.kind === 'cloud').length, nSpl = state.strokes.length - nBands - nBlk - nPul - nLin - nCld;
   if (sel && sel.id !== lastTabSel) setSideTab('unit');
   lastTabSel = sel ? sel.id : null;
@@ -4168,7 +4171,7 @@ function renderInspector() {
       <label class="tog"><input type="checkbox" id="cldSnap" ${target.snap_field ? 'checked' : ''}> Snap notes to the field</label>
       ${sel ? `<div class="selrow" style="margin:6px 0"><button class="btn" id="cldSeed">New random seed</button></div><p class="note">${cloudEvents(sel).length} notes · ${mmss(sel.t_s)}–${mmss(sel.t_s + sel.dur_s)}</p>` : ''}` : ''}${kind === 'line' && sel ? `<p class="note">${sel.points.length} points · ${mmss(sel.points[0][0])}–${mmss(sel.points[sel.points.length - 1][0])}</p>` : ''}${kind === 'pulse' ? `<div class="prm"><label for="pulSet">Partials language</label><select id="pulSet" class="selrow">${PARTIAL_SETS.map(([k, l]) => `<option value="${k}" ${k === (target.partial_set || 'harmonic') ? 'selected' : ''}>${l}</option>`).join('')}</select></div>${sel ? `<p class="note">${pulseTimes(sel).length} pulses · ${mmss(sel.t_s)}–${mmss(sel.t_s + sel.dur_s)}${sel.taps ? ' · tapped rhythm' : ''}</p>${tapRec && tapRec.id === sel.id
   ? `<div class="tappad" id="tapPad" role="button" aria-label="Tap pad">TAP <span id="tapN">${tapRec.times.length}</span><small>tap here (or press T) in the rhythm you want</small></div><div class="selrow"><button class="btn primary" id="tapDone">Done</button><button class="btn" id="tapCancel">Cancel</button></div>`
-  : `<div class="selrow" style="margin:6px 0"><button class="btn" id="tapStart" title="Tap the pulse times yourself (finger, Pencil, trackpad or T); stretching the unit keeps the rhythm">● Tap a rhythm…</button>${sel.taps ? '<button class="btn" id="tapForget">Use the rate again</button>' : ''}</div>${sel.taps ? '<p class="note">The rate sliders are ignored while the unit follows your taps.</p>' : ''}`}` : ''}` : ''}${sel && ((sel.kind === 'block' && !sel.chord) || sel.kind === 'splash') ? `<h2>Notes · tap to turn on / off</h2>
+  : `<div class="selrow" style="margin:6px 0"><button class="btn" id="tapStart" title="Tap the pulse times yourself (finger, Pencil, trackpad or T); stretching the object keeps the rhythm">● Tap a rhythm…</button>${sel.taps ? '<button class="btn" id="tapForget">Use the rate again</button>' : ''}</div>${sel.taps ? '<p class="note">The rate sliders are ignored while the object follows your taps.</p>' : ''}`}` : ''}` : ''}${sel && ((sel.kind === 'block' && !sel.chord) || sel.kind === 'splash') ? `<h2>Notes · tap to turn on / off</h2>
        <div class="notechips">${unitNoteList(sel).map(it => `<button class="chip notechip" data-nf="${it.f}" aria-pressed="${it.on}" title="${it.f.toFixed(2)} Hz">${chordLabel(it.f)}</button>`).join('')}</div>
        <p class="note">${unitNoteList(sel).filter(x => !x.on).length ? unitNoteList(sel).filter(x => !x.on).length + ' off · ' : ''}⌥-click a note on the score does the same.</p>` : ''}${sel && sel.chord ? `<h2>Chord notes</h2>
        <div class="prm"><input id="chdNotes" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" value="${sel.notes_hz.map(chordLabel).join(' ')}" style="width:100%;box-sizing:border-box;font:14px var(--font-data);padding:7px 8px;border:1px solid var(--line);border-radius:8px;background:#fffdf8" title="Type notes: C3 E3 G3+14 Bb3 · MIDI numbers (60 64.5) · or Hz (440hz). Enter applies."></div>
@@ -4181,25 +4184,25 @@ function renderInspector() {
       <div class="keys">
         <kbd>⌘C ⌘X ⌘V</kbd><span>copy, cut, paste at the last place you touched</span>
         <kbd>⌘D</kbd><span>duplicate</span>
-        <kbd>/</kbd><span>split the selected unit at the pointer</span>
+        <kbd>/</kbd><span>split the selected sound object at the pointer</span>
         <kbd>⌥⌘C ⌥⌘V</kbd><span>copy, paste just the envelope</span>
         <kbd>⌫ in the lane</kbd><span>delete the selected envelope point</span>
-        <kbd>⌫</kbd><span>delete the selected unit</span>
+        <kbd>⌫</kbd><span>delete the selected sound object</span>
         <kbd>⌘Z ⇧⌘Z</kbd><span>undo, redo</span>
         <kbd>← →</kbd><span>move in time (⇧ for 1 s)</span>
         <kbd>↑ ↓</kbd><span>move a semitone (⇧ for an octave)</span>
         <kbd>⌥ drag</kbd><span>copy while moving</span>
         <kbd>B I K P U C V E H</kbd><span>Band, Impulse, Block, Pulse, Line, Cloud, Select, Erase, Shape</span>
         <kbd>S</kbd><span>switch drawing ⇄ selecting / moving</span>
-        <kbd>Space · ⇧Space</kbd><span>play the score, play the selected unit once</span>
-        <kbd>L · R</kbd><span>loop the unit, record its envelope</span>
+        <kbd>Space · ⇧Space</kbd><span>play the score, play the selected sound object once</span>
+        <kbd>L · R</kbd><span>loop the sound object, record its envelope</span>
         <kbd>, .</kbd><span>move the play start by 1 s (⇧ for 10 s)</span>
         <kbd>Return</kbd><span>play start back to 0:00</span>
         <kbd>1 · 2 · F</kbd><span>Envelope panel, Settings panel, full screen</span>
         <kbd>Esc</kbd><span>deselect</span>
       </div></section>
     <section><h2>This sketch</h2>
-      <p class="note">${nBands} band${nBands === 1 ? '' : 's'}, ${nSpl} impulse${nSpl === 1 ? '' : 's'}, ${nBlk} block${nBlk === 1 ? '' : 's'}, ${nPul} pulse${nPul === 1 ? '' : 's'}, ${nLin} line${nLin === 1 ? '' : 's'}, ${nCld} cloud${nCld === 1 ? '' : 's'}, ${mmss(state.length)}. Tap or drag the time ruler under the canvas to choose where Play starts. Select a unit to shape its loudness envelope in the lane under the canvas. Kept on this iPad as you work. <b>Save sketch</b> makes a .json file for the Mac; the playback here is a sine or organ preview only.</p></section></div>`;
+      <p class="note">${nBands} band${nBands === 1 ? '' : 's'}, ${nSpl} impulse${nSpl === 1 ? '' : 's'}, ${nBlk} block${nBlk === 1 ? '' : 's'}, ${nPul} pulse${nPul === 1 ? '' : 's'}, ${nLin} line${nLin === 1 ? '' : 's'}, ${nCld} cloud${nCld === 1 ? '' : 's'}, ${mmss(state.length)}. Tap or drag the time ruler under the canvas to choose where Play starts. Select a sound object to shape its loudness envelope in the lane under the canvas. Kept on this iPad as you work. <b>Save sketch</b> makes a .json file for the Mac; the playback here is a sine or organ preview only.</p></section></div>`;
   wireSpace(sel);
   insp.querySelectorAll('[data-layer]').forEach(el => {
     const pick = () => { state.layer = el.dataset.layer; syncVisible(); dirty = true; renderInspector(); requestDraw(); };
@@ -4223,7 +4226,7 @@ function renderInspector() {
   insp.querySelectorAll('[data-lsound]').forEach(sel2 => sel2.addEventListener('change', () => setLayerSound(sel2.dataset.lsound, sel2.value)));
   insp.querySelectorAll('[data-ldel]').forEach(b => b.addEventListener('click', () => {
     const id = b.dataset.ldel, L = layerById(id), n = state.strokes.filter(u => u.layer === id).length;
-    if (n) { status(`${L.name} still has ${n} unit${n === 1 ? '' : 's'}. Move or delete them first.`); return; }
+    if (n) { status(`${L.name} still has ${n} object${n === 1 ? '' : 's'}. Move or delete them first.`); return; }
     LAYERS.splice(LAYERS.indexOf(L), 1); delete state.layerSound[id]; delete state.solo[id]; delete state.mute[id]; saveLayerSounds();
     if (state.layer === id) state.layer = LAYERS[0].id; syncVisible(); changed(false); renderInspector(); status(`Removed ${L.name}.`);
   }));
@@ -4291,7 +4294,7 @@ function renderInspector() {
   const be = document.getElementById('blkEntry');
   if (be) be.addEventListener('change', () => { if (sel) pushUndo(); target.entry = be.value; if (sel) changed(true); else renderInspector(); });
   const sl = document.getElementById('selLayer');
-  if (sl) sl.addEventListener('change', () => { pushUndo(); const all = selSet().length ? selSet() : [sel]; for (const u of all) u.layer = sl.value; changed(true); status(`${all.length > 1 ? all.length + ' units' : 'Unit'} moved to ${layerById(sl.value).name}.`); });
+  if (sl) sl.addEventListener('change', () => { pushUndo(); const all = selSet().length ? selSet() : [sel]; for (const u of all) u.layer = sl.value; changed(true); status(`${all.length > 1 ? all.length + ' objects' : 'Object'} moved to ${layerById(sl.value).name}.`); });
   const del = document.getElementById('delSel');
   if (del) del.addEventListener('click', () => deleteSel('Deleted'));
   const dup = document.getElementById('dupSel'); if (dup) dup.addEventListener('click', duplicateSel);
@@ -5321,9 +5324,9 @@ function playUnitsNow(list) {
 }
 function playSelUnit() {
   if (unitPlay) { stopUnitPlay(); return; }
-  if (selSet().length > 1 && !unitPlay) { playUnitsNow(selSet()); status(`Playing the ${selSet().length} selected units.`); return; }
+  if (selSet().length > 1 && !unitPlay) { playUnitsNow(selSet()); status(`Playing the ${selSet().length} selected objects.`); return; }
   const s = state.strokes.find(x => x.id === state.selected);
-  if (!s) { status('Select a unit first, then ▶ Unit (or ⇧Space) plays just that unit.'); return; }
+  if (!s) { status('Select a object first, then ▶ Object (or ⇧Space) plays just that object.'); return; }
   if (!ensureAudio()) return;
   stopPlay(); if (typeof stopLoop === 'function') stopLoop();
   const [a, b] = unitSpan(s), v = unitVoices(s).map(x => ({ ...x, t0: x.t0 - a }));
@@ -5447,7 +5450,7 @@ function annHint() {
   return { pen: 'Write: draw freely with the Pencil, words, marks, sketches. No sound.',
     arrow: 'Arrow: drag from the start of the arrow to its point.',
     circle: 'Circle: drag across the area to ring it.',
-    note: 'Note: tap a unit to give it a note, or tap anywhere else to pin a note to that moment.',
+    note: 'Note: tap a object to give it a note, or tap anywhere else to pin a note to that moment.',
     erase: 'Erase: tap or rub over writing, arrows, circles or note pins.' }[state.annMode];
 }
 document.getElementById('showAnn').addEventListener('change', e => { state.showAnn = e.target.checked; dirty = true; requestDraw(); });
@@ -5524,11 +5527,11 @@ function notesMarkdown() {
   lines.push('## Key data', '',
     `- **Length:** ${fmtMSH(state.length)} (mm:ss:hh)`,
     `- **Field:** ${fieldDescription()}`,
-    `- **Units:** ${F.units} (${kindList})` + ((state.macUnits || []).length ? ` + ${state.macUnits.length} Mac-only` : ''));
+    `- **Sound objects:** ${F.units} (${kindList})` + ((state.macUnits || []).length ? ` + ${state.macUnits.length} Mac-only` : ''));
   if (F.layers.length) lines.push('- **Layers:** ' + F.layers.map(x => `${x.name} ${x.n} (${x.sound})`).join(' · '));
   if (F.first != null) lines.push(`- **Sounding:** ${fmtMSH(F.first)} to ${fmtMSH(F.last)}`);
   if (F.pitch) lines.push(`- **Pitch range:** ${hzLabel(F.pitch[0])} to ${hzLabel(F.pitch[1])}`);
-  if (F.densest && F.densest.n > 1) lines.push(`- **Densest:** ${F.densest.n} units at once, from ${fmtMSH(F.densest.t)}`);
+  if (F.densest && F.densest.n > 1) lines.push(`- **Densest:** ${F.densest.n} objects at once, from ${fmtMSH(F.densest.t)}`);
   if (F.gaps && F.gaps.length) lines.push('- **Silences:** ' + F.gaps.map(g => `${fmtMSH(g[0])}–${fmtMSH(g[1])}`).join(', '));
   lines.push(`- **Regions / markers:** ${state.regions.length} / ${state.markers.length}`, `- **Notes:** ${F.notes} · drawn marks ${F.drawn}`, `- **Created:** ${isoStamp(state.created) || '?'}`, '');
   const img = scoreImage(1100, 480, 2);
@@ -5543,7 +5546,7 @@ function notesMarkdown() {
   if (state.scoreNotesAt && (state.scoreNotes || '').trim()) lines.push(`_Last changed ${state.scoreNotesAt}_`, '');
   lines.push((state.scoreNotes || '').trim() || '_None yet._', '');
   const units = state.strokes.filter(u => u.note && u.note.trim()).map(u => ({ u, span: unitSpan(u) })).sort((a, b) => a.span[0] - b.span[0]);
-  lines.push('## Unit notes', '');
+  lines.push('## Sound object notes', '');
   if (!units.length) lines.push('_None yet._', '');
   for (const { u, span } of units) {
     lines.push(`### ${mmss(span[0])}–${mmss(span[1])} · ${layerById(u.layer).name} ${kindName(u.kind)}`, '');
@@ -5586,7 +5589,7 @@ function shiftUnit(u, dt, ratio) {
     const ne = {}; for (const k in u.note_env) ne[fkey(+k * ratio)] = u.note_env[k]; u.note_env = ne;
   }
 }
-const selWord = list => list.length > 1 ? `${list.length} units` : `the ${kindName(list[0].kind)}`;
+const selWord = list => list.length > 1 ? `${list.length} objects` : `the ${kindName(list[0].kind)}`;
 function deleteSel(word) {
   const list = selSet(); if (!list.length) return;
   pushUndo(); state.strokes = state.strokes.filter(x => !list.includes(x)); setSelection([]); changed(true);
@@ -5637,7 +5640,7 @@ document.addEventListener('keydown', e => {
     if (k === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); }
     else if (k === 'y') { e.preventDefault(); redo(); }
     else if (k === 'g') { e.preventDefault(); e.shiftKey ? ungroupSel() : groupSel(); }
-    else if (k === 'a' && !e.shiftKey) { e.preventDefault(); setSelection(state.strokes.filter(u => state.visible[u.layer] && layerMode(u.layer) === 'full')); changed(true); status(`${selSet().length} units selected.`); }
+    else if (k === 'a' && !e.shiftKey) { e.preventDefault(); setSelection(state.strokes.filter(u => state.visible[u.layer] && layerMode(u.layer) === 'full')); changed(true); status(`${selSet().length} objects selected.`); }
     else if (k === 'c' && has) { e.preventDefault(); copySel(); }
     else if (k === 'x' && has) { e.preventDefault(); copySel(); deleteSel('Cut'); }
     else if (k === 'v' && clip) { e.preventDefault(); pasteClip(); }
@@ -5694,7 +5697,7 @@ document.addEventListener('keydown', e => {
   if (k === '2') { togglePanel('side'); return; }
   if (k === '3') { document.getElementById('labBox').hidden ? openLab() : closeLab(); return; }
   if (k === 'y') { document.getElementById('libBox').hidden ? openLib() : closeLib(); return; }
-  if (k === 'n') { const u = state.strokes.find(x => x.id === state.selected); if (u) openNote({ unit: u }); else status('Select a unit first, or use the ✎ tool’s Note to pin a note anywhere.'); return; }
+  if (k === 'n') { const u = state.strokes.find(x => x.id === state.selected); if (u) openNote({ unit: u }); else status('Select a object first, or use the ✎ tool’s Note to pin a note anywhere.'); return; }
   if (k === 's' || k === 'm') { toggleMove(); return; }
   const tools = { o: 'chord', b: 'band', i: 'splash', k: 'block', p: 'pulse', u: 'line', w: 'arc', c: 'cloud', v: 'select', e: 'erase', h: 'shape', a: 'annotate' };
   if (tools[k]) { setTool(tools[k]); return; }
@@ -5840,9 +5843,9 @@ function setLaneMode(m) {
   if (m !== 'vol') state.envTarget = 'unit';
   renderLaneHeader();
   const s = selUnit(), ml = modLane(s), pr = s && layerSoundOf(s), d = ml && pr && modDef(pr.engine, ml.k);
-  status(m === 'pan' ? 'Pan: the centre of the unit\'s voices. Top is right, the middle line is centre, the bottom is left. Each voice keeps its own place around it (Settings › Spatialisation).'
+  status(m === 'pan' ? 'Pan: the centre of the object\'s voices. Top is right, the middle line is centre, the bottom is left. Each voice keeps its own place around it (Settings › Spatialisation).'
     : m === 'spread' ? 'Spread: how far the Spatialisation law spreads the voices. Top = the full law, bottom = all at the centre. Set a law in Settings › Spatialisation.'
-    : ml ? (d ? `${d.l}: the top of the lane is ${modFmt(d, d.max)}${modUnit(d) ? ' ' + modUnit(d) : ''}, the bottom ${modFmt(d, d.min)}${d.log ? ' (log scale)' : ''}. The envelope sets the control across the unit, in place of the preset value.`
+    : ml ? (d ? `${d.l}: the top of the lane is ${modFmt(d, d.max)}${modUnit(d) ? ' ' + modUnit(d) : ''}, the bottom ${modFmt(d, d.min)}${d.log ? ' (log scale)' : ''}. The envelope sets the control across the object, in place of the preset value.`
       : `This layer's sound has no ${ml.l || ml.k}. The envelope is kept and plays again if you switch back.`)
     : 'Loudness envelope.');
 }
@@ -5872,7 +5875,7 @@ function renderModRow() {
   $('modAdd').disabled = !s || mods.length >= MOD_MAX || !defs.length;
   $('modNote').textContent = !s ? '' : !pr ? 'Give this layer a sound to modulate its controls.'
     : !defs.length ? `${ENGINE_NAME[pr.engine] || pr.engine} has no controls to modulate.`
-    : mods.length >= MOD_MAX ? 'Three per unit.' : !mods.length ? `${pr.name || ENGINE_NAME[pr.engine]}: up to 3 controls` : '';
+    : mods.length >= MOD_MAX ? 'Three per object.' : !mods.length ? `${pr.name || ENGINE_NAME[pr.engine]}: up to 3 controls` : '';
 }
 $('modAdd').addEventListener('click', () => {
   const s = selUnit(); if (!s) return;
@@ -5926,7 +5929,7 @@ function renderLaneHeader() {
   const sel = document.getElementById('envTarget'), unitEl = document.getElementById('laneUnit');
   const ctrls = ['envTarget', 'loopBtn', 'saveShape', 'resetEnv', 'recBtn', 'copyEnv', 'pasteEnv', 'reduceBtn', 'delPoint', 'lfoBtn', 'secBtn'].map(id => document.getElementById(id));
   if (!s) {
-    unitEl.textContent = 'No unit selected'; sel.innerHTML = '<option>Whole chord</option>';
+    unitEl.textContent = 'No object selected'; sel.innerHTML = '<option>Whole chord</option>';
     ctrls.forEach(c => c.disabled = true);
     lfoSec = false; renderLfo();
     renderShapes();
@@ -5938,7 +5941,7 @@ function renderLaneHeader() {
   const mmss = t => Math.floor(t / 60) + ':' + (t % 60).toFixed(1).padStart(4, '0');
   unitEl.textContent = `${KindName(s.kind)} · ${L.name} · ${mmss(s0)}–${mmss(s1)}`;
   const notes = unitNotes(s);
-  sel.innerHTML = `<option value="unit">${notes.length > 1 ? 'Whole chord' : 'Whole unit'}</option>` +
+  sel.innerHTML = `<option value="unit">${notes.length > 1 ? 'Whole chord' : 'Whole object'}</option>` +
     notes.map(n => `<option value="${n.key}">${n.text}${s.note_env && s.note_env[n.key] ? ' ●' : ''}</option>`).join('');
   if (state.envTarget !== 'unit' && !notes.some(n => n.key === state.envTarget)) state.envTarget = 'unit';
   sel.value = state.envTarget;
@@ -5963,7 +5966,7 @@ function renderCurveRow() {
   if (selSeg != null && (!env || selSeg >= env.length - 1)) selSeg = null;
   const cur = env && selSeg != null ? (env[selSeg][2] || 'lin') : null;
   const note = document.getElementById('segNote');
-  note.textContent = !s ? 'Select a unit first.' : selSeg == null ? 'Tap the curve to add a point · ⌥-tap or double-tap a point to delete · tap between points or the curve button under a segment to choose its curve' : `Segment ${selSeg + 1} of ${env.length - 1} · drag the ◇ up or down to bend it`;
+  note.textContent = !s ? 'Select a object first.' : selSeg == null ? 'Tap the curve to add a point · ⌥-tap or double-tap a point to delete · tap between points or the curve button under a segment to choose its curve' : `Segment ${selSeg + 1} of ${env.length - 1} · drag the ◇ up or down to bend it`;
   const box = document.getElementById('curveChips');
   box.innerHTML = CURVES.map(cv => `<button class="chip${cv.k === cur ? ' on' : ''}" data-curve="${cv.k}">${cv.label}</button>`).join('');
   box.querySelectorAll('[data-curve]').forEach(b => {
@@ -6028,7 +6031,7 @@ function renderShapes() {
       // saved shapes bring their LFO (or clear it); built-ins leave the LFO alone
       if (+b.dataset.shape >= SHAPES.length && !valMode()) { if (sh.lfo) s2.lfo = JSON.parse(JSON.stringify(sh.lfo)); else delete s2.lfo; }
       changed(false); renderLaneHeader();
-      status(`${all[+b.dataset.shape].name} applied to ${state.envTarget === 'unit' ? 'the whole unit' : 'one note'}.`);
+      status(`${all[+b.dataset.shape].name} applied to ${state.envTarget === 'unit' ? 'the whole object' : 'one note'}.`);
     });
   });
 }
@@ -6061,7 +6064,7 @@ function keepShape() {
   if (s.lfo && !valMode()) entry.lfo = JSON.parse(JSON.stringify(s.lfo));
   if (existing >= 0) userShapes[existing] = entry; else userShapes.push(entry);
   saveShapes(); nameBox.hidden = true; renderShapes();
-  status(existing >= 0 ? `Updated the shape ${name}.` : `Saved the shape ${name}. Tap it to apply it to any unit; it's kept on this iPad and in saved sketches.`);
+  status(existing >= 0 ? `Updated the shape ${name}.` : `Saved the shape ${name}. Tap it to apply it to any object; it's kept on this iPad and in saved sketches.`);
 }
 document.getElementById('shapeKeep').addEventListener('click', keepShape);
 document.getElementById('shapeCancel').addEventListener('click', () => { nameBox.hidden = true; });
@@ -6116,12 +6119,12 @@ function copyEnv() {
   const s = selUnit(); if (!s) return;
   envClip = targetEnv(s).map(p => p.slice());
   document.getElementById('pasteEnv').disabled = false;
-  status(`Copied the envelope of ${state.envTarget === 'unit' ? 'the whole unit' : 'one note'}. Select another unit (or a note) and paste it.`);
+  status(`Copied the envelope of ${state.envTarget === 'unit' ? 'the whole object' : 'one note'}. Select another object (or a note) and paste it.`);
 }
 function pasteEnv() {
   const s = selUnit(); if (!s || !envClip) return;
   pushUndo(); setTargetEnv(s, envClip.map(p => p.slice())); changed(false); renderLaneHeader();
-  status(`Envelope pasted onto ${state.envTarget === 'unit' ? 'the whole unit' : 'one note'}. It stretches to this unit's length.`);
+  status(`Envelope pasted onto ${state.envTarget === 'unit' ? 'the whole object' : 'one note'}. It stretches to this object's length.`);
 }
 document.getElementById('copyEnv').addEventListener('click', copyEnv);
 document.getElementById('pasteEnv').addEventListener('click', pasteEnv);
@@ -6449,7 +6452,7 @@ function envMarkHit(e, pt) {
   pickUnit(r.u, false); renderInspector(); changed(true);
   if (!layout.lane) togglePanel('lane');
   setLaneMode(r.m); requestDraw();
-  status(`Editing the ${laneName(r.u, r.m)} lane of this unit.`);
+  status(`Editing the ${laneName(r.u, r.m)} lane of this object.`);
   return true;
 }
 window.__lhMarks = { draw: drawEnvMarks, hit: envMarkHit };
@@ -6631,13 +6634,13 @@ function lfoDone() { lfoUndoKey = null; changed(false); }
 $('laneVol').addEventListener('click', () => setLaneMode('vol'));
 $('lanePan').addEventListener('click', () => setLaneMode('pan'));
 $('laneSpread').addEventListener('click', () => setLaneMode('spread'));
-$('laneStackBtn').addEventListener('click', () => { stackOn = !stackOn; saveStack(); renderStack(); status(stackOn ? 'Stack: the unit\'s other lanes show above the one you edit. Tap one to edit it; Show picks which.' : 'One lane at a time.'); });
+$('laneStackBtn').addEventListener('click', () => { stackOn = !stackOn; saveStack(); renderStack(); status(stackOn ? 'Stack: the object\'s other lanes show above the one you edit. Tap one to edit it; Show picks which.' : 'One lane at a time.'); });
 $('stackTall').addEventListener('click', () => { stackTall = !stackTall; saveStack(); renderStack(); });
 $('lfoShape').innerHTML = LFO_SHAPES.map(([k, l]) => `<option value="${k}">${l}</option>`).join('');
 $('lfoPreset').innerHTML = '<option value="">Presets…</option>' + LFO_PRESETS.map((p, i) => `<option value="${i}">${p.name}</option>`).join('');
 $('lfoBtn').addEventListener('click', () => {
   const s = selUnit(); if (!s) return;
-  if (!s.lfo) { pushUndo(); s.lfo = newLfo(); lfoOpen = true; lfoMore = false; changed(false); status('LFO added: a sine across the whole unit. Section picks part of it.'); }
+  if (!s.lfo) { pushUndo(); s.lfo = newLfo(); lfoOpen = true; lfoMore = false; changed(false); status('LFO added: a sine across the whole object. Section picks part of it.'); }
   else lfoOpen = !lfoOpen;
   renderLfo(); requestDraw();
 });
@@ -6666,7 +6669,7 @@ $('lfoMode').addEventListener('click', () => {
   else { f.hz = +clamp((f.cycles ?? 8) / Math.max(span, 0.001), 0.02, 40).toPrecision(3); f.rate_mode = 'hz'; }
   changed(false); renderLfo();
 });
-$('lfoWhole').addEventListener('click', () => { const s = selUnit(); if (!s || !s.lfo) return; pushUndo(); delete s.lfo.range; changed(false); renderLfo(); status('The LFO applies to the whole unit.'); });
+$('lfoWhole').addEventListener('click', () => { const s = selUnit(); if (!s || !s.lfo) return; pushUndo(); delete s.lfo.range; changed(false); renderLfo(); status('The LFO applies to the whole object.'); });
 $('lfoMore').addEventListener('click', () => { lfoMore = true; renderLfo(); });
 $('lfoLess').addEventListener('click', () => { lfoMore = false; renderLfo(); });
 $('lfoRemove').addEventListener('click', () => { const s = selUnit(); if (!s || !s.lfo) return; pushUndo(); delete s.lfo; lfoOpen = false; changed(false); renderLfo(); status('LFO removed.'); });
@@ -6728,7 +6731,7 @@ function startRecord() {
   pushUndo();
   recording = { id: s.id, key, startAt, len, bus, base, oscs: schedule(v, startAt, bus), pts: [], u: null, preview: targetEnv(s).map(p => p.slice()) };
   recBtn.textContent = '■ Stop'; recBtn.classList.add('on');
-  status('Recording: ride the fader while the unit plays.');
+  status('Recording: ride the fader while the object plays.');
   const tick = () => {
     if (!recording) return;
     const now = ac.currentTime;
@@ -6760,7 +6763,7 @@ function finishRecord() {
   const prevTarget = state.envTarget; state.envTarget = r.key || 'unit';
   setTargetEnv(s, mergeEnv(targetEnv(s), pts)); state.envTarget = prevTarget;
   changed(false); renderLaneHeader();
-  status(`Recorded ${pts.length} points${r.pts[r.pts.length - 1][0] < 1 ? ' (stopped early: the rest is unchanged)' : ''}. Loop the unit to hear it, or record again.`);
+  status(`Recorded ${pts.length} points${r.pts[r.pts.length - 1][0] < 1 ? ' (stopped early: the rest is unchanged)' : ''}. Loop the object to hear it, or record again.`);
 }
 recBtn.addEventListener('click', () => { recording ? finishRecord() : startRecord(); });
 // ---------------------------------------------------------------- layout: panels, splitters, full screen
@@ -7082,13 +7085,13 @@ function saveSelToLib() {
   if (list.length > 1) entry.units = list.map(strip);
   unitLib.push(entry);
   saveUnitLib(); saveLocal();
-  status(`Saved “${name}” to the unit library. Rename it there (Y).`);
+  status(`Saved “${name}” to the object library. Rename it there (Y).`);
 }
 function openLib() { renderLib(); document.getElementById('libBox').hidden = false; }
 function closeLib() { stopUnitPlay && stopUnitPlay(); document.getElementById('libBox').hidden = true; }
 function renderLib() {
   const box = document.getElementById('libList');
-  if (!unitLib.length) { box.innerHTML = '<p class="note">No saved units yet. Select a unit and choose Save to library.</p>'; return; }
+  if (!unitLib.length) { box.innerHTML = '<p class="note">No saved objects yet. Select a object and choose Save to library.</p>'; return; }
   box.innerHTML = unitLib.map(x => {
     const u = x.unit, L = layerById(u.layer), [a, b] = x.units ? selBounds(x.units) : unitSpan(u);
     return `<div class="librow" data-id="${esc2(x.id)}"><div><input type="text" maxlength="80" value="${esc2(x.name)}" aria-label="Name"><small>${x.units ? 'Group of ' + x.units.length : KindName(u.kind) + ' · ' + (L ? L.name : esc2(u.layer))} · ${(b - a).toFixed(2)} s${x.saved ? ' · saved ' + x.saved.slice(0, 10) : ''}</small></div>
@@ -7099,7 +7102,7 @@ function renderLib() {
     row.querySelector('input').addEventListener('change', e => { x.name = e.target.value.trim() || x.name; saveUnitLib(); saveLocal(); });
     row.querySelector('[data-act=hear]').addEventListener('click', () => { const cs = cloneList(x.units || [x.unit]); for (const c of cs) if (!layerById(c.layer)) c.layer = state.layer; playUnitsNow(cs); });
     row.querySelector('[data-act=place]').addEventListener('click', () => placeLibUnit(x));
-    row.querySelector('[data-act=del]').addEventListener('click', () => ask(`Remove “${x.name}” from the library? Units already placed stay in the score.`, [['Remove', () => { libForget(x.id); unitLib = unitLib.filter(y => y !== x); saveUnitLib(); saveLocal(); renderLib(); }, 'warn'], ['Cancel', null]]));
+    row.querySelector('[data-act=del]').addEventListener('click', () => ask(`Remove “${x.name}” from the library? Objects already placed stay in the score.`, [['Remove', () => { libForget(x.id); unitLib = unitLib.filter(y => y !== x); saveUnitLib(); saveLocal(); renderLib(); }, 'warn'], ['Cancel', null]]));
   });
 }
 function placeLibUnit(x) {
@@ -7109,14 +7112,14 @@ function placeLibUnit(x) {
   for (const c of cs) shiftUnit(c, target - start, 1);
   state.strokes.push(...cs); setSelection(cs, cs[0]); state.cursorT = selBounds(cs)[1] + 0.5; changed(true);
   const c = cs[0];
-  closeLib(); status(`Placed “${x.name}” at ${target.toFixed(2)} s. It's an ordinary unit now: edit it freely, the library copy stays as saved.`);
+  closeLib(); status(`Placed “${x.name}” at ${target.toFixed(2)} s. It's an ordinary object now: edit it freely, the library copy stays as saved.`);
 }
 async function exportLib() {
   const data = JSON.stringify({ format: 'lh-spectral-library', version: 1, app: 'LH Spectral Palette (iPad)', saved: new Date().toISOString(),
-    note: 'units = saved single units (as in unit_library); sounds = Sound Lab presets, each with mac = {engine, sliders} for the REAPER plug-in.',
+    note: 'units = saved single objects (as in unit_library); sounds = Sound Lab presets, each with mac = {engine, sliders} for the REAPER plug-in.',
     units: unitLib, sounds: userSounds.map(soundForFile), deleted: libDeleted, modified_rule: 'each item has modified; the newer wins; deleted = {id: when}' }, null, 2);
   const filename = 'LH Library.json';
-  if (downloads) { try { await downloads.save({ filename, data }); status(`Saved ${filename}: ${unitLib.length} unit(s), ${userSounds.length} preset(s). Choose Save to Files › iCloud Drive › LH Spectral Sketches.`); return; } catch (e) { if (e && e.code === 'declined') return; } }
+  if (downloads) { try { await downloads.save({ filename, data }); status(`Saved ${filename}: ${unitLib.length} object(s), ${userSounds.length} preset(s). Choose Save to Files › iCloud Drive › LH Spectral Sketches.`); return; } catch (e) { if (e && e.code === 'declined') return; } }
   document.getElementById('copyName').textContent = filename; document.getElementById('copyText').value = data; document.getElementById('copyBox').hidden = false;
 }
 function importLib(d) {
@@ -7125,8 +7128,8 @@ function importLib(d) {
   if (typeof renderLab === 'function' && !document.getElementById('labBox').hidden) renderLab();
   renderPresetNote && renderPresetNote();
   const part = (r, what) => (r.added || r.updated || r.removed) ? `${what}: ${[r.added && r.added + ' new', r.updated && r.updated + ' updated', r.removed && r.removed + ' removed'].filter(Boolean).join(', ')}` : '';
-  const msg = [part(u, 'units'), part(s, 'Sound Lab presets')].filter(Boolean).join(' · ');
-  status(msg ? `Library: ${msg}.` : `Library: already up to date (${unitLib.length} unit(s), ${userSounds.length} preset(s) of your own).`);
+  const msg = [part(u, 'objects'), part(s, 'Sound Lab presets')].filter(Boolean).join(' · ');
+  status(msg ? `Library: ${msg}.` : `Library: already up to date (${unitLib.length} object(s), ${userSounds.length} preset(s) of your own).`);
 }
 document.getElementById('libClose').addEventListener('click', closeLib);
 document.getElementById('libBox').addEventListener('click', e => { if (e.target.id === 'libBox') closeLib(); });
@@ -7139,7 +7142,27 @@ libFileIn.addEventListener('change', () => {
   rd.onload = () => { try { const d = JSON.parse(rd.result); if (d.format !== 'lh-spectral-library') throw 0; importLib(d); } catch (e) { status(`${f.name} isn't an LH library file.`, true); } libFileIn.value = ''; };
   rd.readAsText(f);
 });
-function openHelp() { document.getElementById('helpBox').hidden = false; document.getElementById('helpClose').focus(); }
+function openHelp() { document.getElementById('helpBox').hidden = false; const q = document.getElementById('helpSearch'); if (matchMedia('(pointer: fine)').matches) q.focus(); else document.getElementById('helpClose').focus(); }
+// v78: search the help: every word typed must appear in an entry (its key or its text); sections with nothing left hide
+function filterHelp() {
+  const words = document.getElementById('helpSearch').value.toLowerCase().split(/\s+/).filter(Boolean);
+  const hit = t => words.every(w => t.toLowerCase().includes(w));
+  let any = !words.length;
+  document.querySelectorAll('#helpBox .helpgrid > section').forEach(sec => {
+    const head = sec.querySelector('h4'), headHit = words.length && head && hit(head.textContent);
+    let n = 0;
+    sec.querySelectorAll('dt').forEach(dt => {
+      const dd = dt.nextElementSibling, ok = !words.length || headHit || hit(dt.textContent + ' ' + (dd ? dd.textContent : ''));
+      dt.classList.toggle('hx', !ok); if (dd && dd.tagName === 'DD') dd.classList.toggle('hx', !ok); if (ok) n++;
+    });
+    sec.querySelectorAll(':scope > p, :scope > ul, :scope > ol').forEach(el => { const ok = !words.length || headHit || hit(el.textContent); el.classList.toggle('hx', !ok); if (ok) n++; });
+    sec.classList.toggle('hx', !!words.length && !n);
+    if (n && words.length) any = true;
+  });
+  document.getElementById('helpNone').hidden = any;
+}
+document.getElementById('helpSearch').addEventListener('input', filterHelp);
+document.getElementById('helpSearch').addEventListener('keydown', e => { if (e.key === 'Escape' && e.target.value) { e.stopPropagation(); e.preventDefault(); e.target.value = ''; filterHelp(); } });
 function closeHelp() { document.getElementById('helpBox').hidden = true; }
 document.getElementById('helpBtn').addEventListener('click', openHelp);
 document.getElementById('helpClose').addEventListener('click', closeHelp);
@@ -7208,17 +7231,17 @@ resize();
   const bLane = mk('mLane', 'Loudness ▾', 'Which lane to edit: Loudness, Pan, Spread or a modulation lane');
   const bShape = mk('mShape', 'Shape ▾', 'Load a shape onto this lane, or save this one');
   const bCurve = mk('mCurve', 'Curve ▾', 'How the line bends between points');
-  const bStack = mk('mStack', 'Stack ▾', "Show the unit's other lanes above the one you are editing");
+  const bStack = mk('mStack', 'Stack ▾', "Show the object's other lanes above the one you are editing");
   const bEdit = mk('mEdit', 'Edit ▾', 'Copy, paste, reduce points, delete point, reset, LFO');
   const pLane = pop('popLane'), pShape = pop('popShape'), pCurve = pop('popCurve'), pStack = pop('popStack'), pEdit = pop('popEdit');
-  head(pLane, 'Lanes of this unit'); const laneList = document.createElement('div'); laneList.className = 'llist'; pLane.appendChild(laneList);
+  head(pLane, 'Lanes of this object'); const laneList = document.createElement('div'); laneList.className = 'llist'; pLane.appendChild(laneList);
   pLane.appendChild(segs); segs.hidden = true; $('modChips').hidden = true;
   head(pLane, 'Modulation'); pLane.appendChild(modRow);
   const LL = window.__lhLane;
   const esc = t => String(t).replace(/[<>&"]/g, '');
   const renderLaneList = () => {
     const s = LL && LL.sel();
-    if (!s) { laneList.innerHTML = '<div class="segnote">Select a unit first.</div>'; return; }
+    if (!s) { laneList.innerHTML = '<div class="segnote">Select a object first.</div>'; return; }
     const on = LL.stackOn();
     laneList.innerHTML = LL.rows(s).map(r => `<div class="lrow${r.cur ? ' cur' : ''}">
       <button class="lpick" data-lane="${r.m}" title="Edit this lane"><span class="ldot${r.drawn ? ' d' : ''}">${r.drawn ? '●' : '○'}</span>${esc(r.name)}</button>
@@ -7265,7 +7288,7 @@ resize();
 </script>
 
 <script>
-/* Standalone build v77-20261110-0813-d4dd0e: keep the app on the iPad so it opens with no internet. */
+/* Standalone build v78-20261110-0820-ecccdc: keep the app on the iPad so it opens with no internet. */
 if ('serviceWorker' in navigator) window.addEventListener('load', () => {
   // an update downloads in the background; when it takes over, say so and offer a reload (the open sketch is kept on the iPad)
   const had = !!navigator.serviceWorker.controller;
