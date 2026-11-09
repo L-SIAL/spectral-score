@@ -46,3 +46,33 @@ until they are back at the Mac (the Mac copy is on their LH_PORTABLE drive and i
   v80 LFOs are written as points onto a lane: `regenLaneLfo`, `lfoBase`, settings in `lane_lfo` / `mods[i].lfo`.
 - Menus under the score are built by the IIFE at the end of the script (its own `$`).
 - `window.__lh` exposes test hooks (fromJSON, toJSON, unitVoices, setLaneMode, state, …).
+
+## Where we are (10 Nov 2026, from the last Mac session)
+The newest version is the one in `ipad/`. Recent work, newest first (details in HANDOFF.md):
+- v87 the play head moves while one object plays alone (▶ Object / ⇧Space).
+- v86 Shape · Fan in (mirror of Fan out). v84/v85 Object panel buttons in pairs — BUT the Shape · Block buttons
+  stay in their wrapping row: in pairs they were unreadable on the iPad. Check readability on an iPad-sized panel.
+- v83 Move / Copy to layer (K / ⇧K). v82 lane marks sit at the object's start and scroll with it.
+- v80/v81 LFO on any lane (loudness, pan, spread, modulation), REAPER automation-item style, from Shape ▾ › LFO;
+  the word "tremolo" is gone everywhere; Reset is now called Clear.
+- v78/v79 "unit" → "object" / "sound object"; help window has a search box.
+- v77 the "iPad had stopped the sound" check no longer fires by mistake (the iPad's audio clock moves in chunks).
+- v76 Reverse loudness shape; v75 band release tails fixed.
+
+Decisions and preferences from the user:
+- Release tails come from the sound preset's release; an envelope that ends at silence has no tail. A per-object
+  tail control was discussed and postponed ("too complicated for now") — don't build it unless asked.
+- Mute / solo only need to work from the next Play, not live while playing.
+- The sound must stay reasonably rich but light enough for the iPad (Playback detail setting); pure sines,
+  no per-layer noise/FM colouring by default.
+- The user tests on the iPad and reports back, often with screenshots. After every deploy tell them to wait ~2 min,
+  close the app fully and reopen; the version bottom left must change.
+- If unsure what they want, give 2–3 short options (a mockup if it's visual) before building.
+
+Agreed but not built yet (do only when asked):
+- ⏮ Return to 0:00 (button by Play, and Return/Home) that also scrolls the view to the start.
+- [ ] zoom keeps the play head in the middle of the screen (pinch keeps its finger anchor).
+- The duration box applies on blur, so ticking/unticking "Stretch" after typing a new length stretches the score:
+  make it apply on Return only, or ask before stretching.
+- The "1" key reportedly didn't hide the envelope panel once (unexplained).
+- Undecided: a Focus toggle that hides panels and lanes for drawing.
