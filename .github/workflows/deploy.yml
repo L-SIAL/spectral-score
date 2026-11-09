@@ -1,6 +1,6 @@
 name: Build and deploy the app
 # Builds the installable iPad app from the newest ipad/lh-spectral-palette-sketchpad_vNN.html and publishes it to
-# https://l-sial.github.io/spectral-score/ . Runs on every push to main that touches the app, or by hand (Run workflow).
+# https://l-sial.github.io/spectral-score/ (Settings › Pages › Source = GitHub Actions). Runs on every push to main that touches the app, or by hand (Run workflow).
 on:
   push:
     branches: [main]
