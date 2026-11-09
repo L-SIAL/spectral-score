@@ -1060,3 +1060,6 @@ Queue started 8 Nov 2026, after v69. Copy into LH_Palette_Handoff/HANDOFF.md ("N
 
 ## v87 (10 Nov)
 - ▶ Object / ⇧Space: the play head now moves across the object (and across a multi-selection) while it plays alone (followObjHead; same latency correction as Play). Button text while playing: ■ Object (was ■ Unit).
+
+## v88 (9 Nov)
+- Help window title is now "Help – Spectral Score" (was "How to use the sketchpad"; `#helpTitle` in the help overlay).
