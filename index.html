@@ -407,8 +407,8 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
           <button class="chip" id="pasteEnv" title="Paste envelope (⌥⌘V)">Paste</button>
           <button class="chip" id="reduceBtn" title="Reduce the number of points">Reduce points…</button>
           <button class="chip" id="delPoint" title="Delete the selected point (⌫)">Delete point</button>
-          <button class="chip" id="resetEnv" title="Flat line, no LFO">Reset</button>
-          <button class="chip lfo" id="lfoBtn" title="Tremolo / LFO on this object">LFO</button>
+          <button class="chip" id="resetEnv" title="Clear: a flat line, no LFO">Clear</button>
+          <button class="chip lfo" id="lfoBtn" title="An LFO on this lane: opens its controls">LFO</button>
           <button class="chip lfo" id="secBtn" title="Drag across the lane to choose a section for the LFO (or ⇧-drag)">Section</button>
         </div>
         <div class="lane-head mod-row" id="modRow">
@@ -528,7 +528,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
     <label>Name <input id="mrName" type="text" autocomplete="off" style="width: 14em" aria-label="Name"></label>
     <span class="selrow"><button class="btn primary" id="mrOk">Done</button><button class="btn warn" id="mrDel">Delete</button><button class="btn" id="mrCancel">Cancel</button></span></div>
   <div class="askbar" id="askBar" hidden><span id="askText"></span><span class="selrow" id="askBtns"></span></div>
-  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v79</span></div>
+  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v80</span></div>
 </div>
 
 <div class="laypop" id="layerDots" role="menu" aria-label="Layer to draw on" hidden></div>
@@ -619,8 +619,8 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
           <dt>Whole chord / a note</dt><dd>shape the sound object, or give one note its own envelope.</dd>
           <dt>Loudness · Pan</dt><dd>switch the lane between the loudness envelope and the sound object's pan (top = right, middle = centre, bottom = left). Pan is drawn and edited the same way.</dd>
           <dt>♪ Sound Lab (3)</dt><dd>in Settings: craft sounds from the REAPER synths (LH Breath so far). Hold the pads to play; moving a control on a REAPER preset makes your own copy. “Use on this layer” puts it in the score (Sound: Sine + Sound Lab presets).</dd>
-          <dt>LFO</dt><dd>adds a plain sine tremolo across the sound object: shape, cycles, depth. More ▸ has the rest (Hz, phase, skews, tilt, baseline, soft edges, presets, Bake).</dd>
-          <dt>Section</dt><dd>then drag across the lane to put the LFO on part of the sound object (⇧-drag with a keyboard). Drag the [ ] tabs at the foot of the lane to adjust it.</dd>
+          <dt>LFO</dt><dd>Shape ▾ › LFO writes an LFO onto the lane you are editing (loudness, pan, spread or a modulation lane) as one envelope, like a REAPER automation item: shape, cycles, depth and baseline. More ▸ has the rest (Hz, phase, skews, tilt, soft edges, presets). Keep as points turns it into ordinary points to edit by hand.</dd>
+          <dt>Section</dt><dd>in the LFO row: then drag across the lane to put the LFO on part of the sound object (⇧-drag with a keyboard). Drag the [ ] tabs at the foot of the lane to adjust it.</dd>
         </dl></section>
       <section><h4>Playing</h4>
         <dl>
@@ -1463,13 +1463,13 @@ const newSeed = () => Math.floor(Math.random() * 2147483000) + 1;
 const newLfo = () => ({ shape: 'sine', ride: true, baseline_db: -12, amp_db: 9, rate_mode: 'cycles', cycles: 4, hz: 4, phase: 0, fskew: 0, askew: 0, tilt: 0, pw: 0.5, seed: newSeed() });
 const lp = o => Object.assign(newLfo(), o, { seed: 1 });
 const LFO_PRESETS = [
-  { name: 'Tremolo 4 Hz', lfo: lp({ shape: 'sine', rate_mode: 'hz', hz: 4, amp_db: 12 }) },
-  { name: 'Flutter 9 Hz', lfo: lp({ shape: 'triangle', rate_mode: 'hz', hz: 9, amp_db: 6 }) },
-  { name: 'Slow swell 0.25 Hz', lfo: lp({ shape: 'sine', rate_mode: 'hz', hz: 0.25, amp_db: 18 }) },
-  { name: 'Pulse 2 Hz', lfo: lp({ shape: 'square', rate_mode: 'hz', hz: 2, amp_db: 24, pw: 0.3 }) },
-  { name: 'Accelerating tremolo', lfo: lp({ shape: 'sine', rate_mode: 'hz', hz: 3, amp_db: 12, fskew: 0.6 }) },
-  { name: 'Tremolo dying away', lfo: lp({ shape: 'sine', rate_mode: 'hz', hz: 5, amp_db: 18, askew: -0.9 }) },
-  { name: 'Tremolo growing', lfo: lp({ shape: 'sine', rate_mode: 'hz', hz: 5, amp_db: 18, askew: 0.9 }) },
+  { name: 'Sine 4 Hz', lfo: lp({ shape: 'sine', rate_mode: 'hz', hz: 4, amp_db: 12 }) },
+  { name: 'Triangle 9 Hz', lfo: lp({ shape: 'triangle', rate_mode: 'hz', hz: 9, amp_db: 6 }) },
+  { name: 'Slow sine 0.25 Hz', lfo: lp({ shape: 'sine', rate_mode: 'hz', hz: 0.25, amp_db: 18 }) },
+  { name: 'Square 2 Hz', lfo: lp({ shape: 'square', rate_mode: 'hz', hz: 2, amp_db: 24, pw: 0.3 }) },
+  { name: 'Sine speeding up', lfo: lp({ shape: 'sine', rate_mode: 'hz', hz: 3, amp_db: 12, fskew: 0.6 }) },
+  { name: 'Sine dying away', lfo: lp({ shape: 'sine', rate_mode: 'hz', hz: 5, amp_db: 18, askew: -0.9 }) },
+  { name: 'Sine growing', lfo: lp({ shape: 'sine', rate_mode: 'hz', hz: 5, amp_db: 18, askew: 0.9 }) },
   { name: 'Gusty (random smooth)', lfo: lp({ shape: 'random_smooth', rate_mode: 'hz', hz: 0.8, amp_db: 15 }) },
   { name: 'Flicker (random steps)', lfo: lp({ shape: 'random', rate_mode: 'hz', hz: 7, amp_db: 12 }) },
   { name: 'Sharp attacks (saw down)', lfo: lp({ shape: 'saw_down', rate_mode: 'hz', hz: 3, amp_db: 20 }) },
@@ -5936,7 +5936,7 @@ function renderLaneHeader() {
     renderCurveRow(); requestDraw(); return;
   }
   ctrls.forEach(c => c.disabled = false);
-  if (valMode()) ['envTarget', 'lfoBtn', 'secBtn', 'recBtn'].forEach(id => { document.getElementById(id).disabled = true; });
+  if (valMode()) ['envTarget', 'recBtn'].forEach(id => { document.getElementById(id).disabled = true; });
   const [s0, s1] = unitSpan(s), L = layerById(s.layer);
   const mmss = t => Math.floor(t / 60) + ':' + (t % 60).toFixed(1).padStart(4, '0');
   unitEl.textContent = `${KindName(s.kind)} · ${L.name} · ${mmss(s0)}–${mmss(s1)}`;
@@ -6024,7 +6024,7 @@ function renderShapes() {
     b.addEventListener('click', () => {
       const s2 = selUnit(); if (!s2) return;
       const sh = all[+b.dataset.shape];
-      pushUndo();
+      pushUndo(); setLaneLfo(s2, null);
       // v64: Flat on the Pan lane is centre, on a modulation lane the preset's value (the top there is right / the maximum)
       const ml2 = modLane(s2), flatHere = +b.dataset.shape === 0 && valMode();
       setTargetEnv(s2, flatHere && panMode() ? PAN_FLAT.map(p => p.slice()) : flatHere && spreadMode() ? spreadFlatOf(s2) : flatHere && ml2 ? modFlat(s2, ml2.k) : sh.pts.map(p => p.slice()));
@@ -6042,7 +6042,7 @@ document.getElementById('envTarget').addEventListener('change', e => {
 });
 document.getElementById('resetEnv').addEventListener('click', () => {
   const s = selUnit(); if (!s) return;
-  pushUndo();
+  pushUndo(); setLaneLfo(s, null);
   if (panMode()) { delete s.pan_env; changed(false); renderLaneHeader(); status('Pan reset to centre.'); return; }
   if (spreadMode()) { delete s.spread_env; changed(false); renderLaneHeader(); status('Spread lane removed: the Spread setting applies again.'); return; }
   if (modIdx() >= 0) { const m = modLane(s); if (m) m.pts = modFlat(s, m.k); changed(false); renderLaneHeader(); status('Flat again, at the preset value.'); return; }
@@ -6222,11 +6222,12 @@ lane.addEventListener('pointerdown', e => {
     if (hb) { try { lane.releasePointerCapture(e.pointerId); } catch (er) { } selSeg = hb.i; selPoint = null; renderCurveRow(); requestDraw(); openSegPop(hb.i, hb.x, hb.y); return; } }
   pushUndo();
   // 0. LFO section: the [ ] tabs at the foot of the lane move its edges; Section mode or ⇧ drags a new one
-  if (!valMode() && s.lfo && s.lfo.range && pt.y > VY(0) - 24) {
-    const xs = s.lfo.range.map(r => XL(s0 + r * sl)), d = xs.map(x => Math.abs(x - pt.x)), w = d[0] <= d[1] ? 0 : 1;
+  const clP = curLfo(s);
+  if (clP && clP.f.range && pt.y > VY(0) - 24) {
+    const xs = clP.f.range.map(r => XL(s0 + r * sl)), d = xs.map(x => Math.abs(x - pt.x)), w = d[0] <= d[1] ? 0 : 1;
     if (d[w] < 16) { laneEdit = { mode: 'edge', which: w, uOf }; return; }
   }
-  if (!valMode() && (lfoSec || e.shiftKey)) { const u0 = clamp(uOf(pt.x), 0, 1); laneEdit = { mode: 'sec', a: u0, b: u0, uOf }; requestDraw(); return; }
+  if (lfoSec || e.shiftKey) { const u0 = clamp(uOf(pt.x), 0, 1); laneEdit = { mode: 'sec', a: u0, b: u0, uOf }; requestDraw(); return; }
   // 1. on a point: select it / drag it (a double tap deletes it)
   const near = env.findIndex(p => Math.abs(XL(s0 + p[0] * sl) - pt.x) < 14 && Math.abs(VY(p[1]) - pt.y) < 14);
   // v51.1: ⌥-click / ⌥-tap a point = delete it (as the Mac)
@@ -6257,8 +6258,10 @@ lane.addEventListener('pointermove', e => {
   if (laneEdit.mode === 'rec') { const u = loopPhase(); if (u != null) laneEdit.pts.push([u, VofY(pt.y)]); }
   else if (laneEdit.mode === 'sec') laneEdit.b = clamp(laneEdit.uOf(pt.x), 0, 1);
   else if (laneEdit.mode === 'edge') {
-    const r = s.lfo.range, u = clamp(laneEdit.uOf(pt.x), 0, 1);
+    const cl = curLfo(s); if (!cl || !cl.f.range) { requestDraw(); return; }
+    const r = cl.f.range, u = clamp(laneEdit.uOf(pt.x), 0, 1);
     if (laneEdit.which === 0) r[0] = +Math.min(u, r[1] - 0.005).toFixed(4); else r[1] = +Math.max(u, r[0] + 0.005).toFixed(4);
+    if (!cl.legacy) regenLaneLfo(s);
     dirty = true; renderLfoNote();
   }
   else if (laneEdit.mode === 'bend') {
@@ -6291,9 +6294,10 @@ function endLane() {
   if (ed.mode === 'sec') {
     const a = Math.min(ed.a, ed.b), b = Math.max(ed.a, ed.b);
     if (b - a < 0.01) { undoStack.pop(); requestDraw(); status('Drag across the lane to choose a section for the LFO.'); return; }
-    const had = !!s.lfo;
-    if (!s.lfo) s.lfo = newLfo();
-    s.lfo.range = [+a.toFixed(4), +b.toFixed(4)];
+    const had = !!curLfo(s);
+    if (!had) setLaneLfo(s, newLaneLfo(s));
+    const cl = curLfo(s); cl.f.range = [+a.toFixed(4), +b.toFixed(4)];
+    if (!cl.legacy) regenLaneLfo(s);
     lfoOpen = true; lfoSec = false;
     changed(false); renderLaneHeader();
     status(`${had ? 'LFO moved to' : 'LFO added on'} ${lfoTime(s, a)} → ${lfoTime(s, b)}. Drag the [ ] tabs at the foot of the lane to adjust.`);
@@ -6530,7 +6534,7 @@ function drawLane() {
   const env = recording && recording.id === s.id ? recording.preview : targetEnv(s);
   const heard = recording ? env : heardEnv(s), mod = !!heard.m;
   // the LFO's section (or one being dragged): a plum band
-  const rg = laneEdit && laneEdit.mode === 'sec' ? [Math.min(laneEdit.a, laneEdit.b), Math.max(laneEdit.a, laneEdit.b)] : (s.lfo && s.lfo.range);
+  const rg = laneEdit && laneEdit.mode === 'sec' ? [Math.min(laneEdit.a, laneEdit.b), Math.max(laneEdit.a, laneEdit.b)] : (curLfo(s) && curLfo(s).f.range);
   if (rg) { const xa = XL(s0 + rg[0] * sl), xb = XL(s0 + rg[1] * sl); c.fillStyle = 'rgba(107,63,115,0.09)'; c.fillRect(xa, LM.t, Math.max(2, xb - xa), LHt - LM.t - LM.b); }
   c.fillStyle = rgba(L.hue, 0.12);
   const base = panMode() ? 0.5 : 0;          // pan fills from the centre line
@@ -6543,9 +6547,10 @@ function drawLane() {
     for (let i = 0; i <= NN; i++) { const u = i / NN, x = XL(s0 + u * sl), y = VY(envAt(heard, u)); i ? c.lineTo(x, y) : c.moveTo(x, y); }
     c.stroke();
   }
-  if (s.lfo && s.lfo.range && !recording) {          // [ ] tabs to drag the section's edges
+  const clD = curLfo(s);
+  if (clD && clD.f.range && !recording) {          // [ ] tabs to drag the section's edges
     c.fillStyle = '#6b3f73'; c.font = '600 13px "IBM Plex Mono", ui-monospace, monospace'; c.textBaseline = 'alphabetic';
-    s.lfo.range.forEach((r, k) => {
+    clD.f.range.forEach((r, k) => {
       const x = XL(s0 + r * sl), yb = VY(0);
       c.fillRect(Math.round(x) - 1, LM.t, 2, yb - LM.t);
       c.fillRect(k ? x - 12 : x, yb - 20, 12, 20);
@@ -6557,6 +6562,14 @@ function drawLane() {
     c.fillStyle = 'rgba(38,98,104,0.12)'; c.fillRect(xa2, LM.t, Math.max(2, xb2 - xa2), LHt - LM.t - LM.b);
   }
   curve(env, recording ? '#a8323e' : '#266268', 2);
+  if (clD && !clD.legacy && !recording) {          // v80: the LFO as a REAPER-style automation item: a box over its section
+    const f = clD.f, a = f.range ? f.range[0] : 0, b = f.range ? f.range[1] : 1, xa = XL(s0 + a * sl), xb = XL(s0 + b * sl);
+    c.strokeStyle = 'rgba(107,63,115,0.75)'; c.lineWidth = 1.5; c.strokeRect(Math.round(xa) + 0.5, LM.t + 0.5, Math.max(4, xb - xa - 1), LHt - LM.t - LM.b - 1);
+    const lab = 'LFO · ' + ((LFO_SHAPES.find(x => x[0] === f.shape) || ['', 'Sine'])[1]) + ' · ' + (f.rate_mode === 'hz' ? (f.hz ?? 4) + ' Hz' : (f.cycles ?? 8) + ' cycles');
+    c.font = '600 11px "IBM Plex Mono", ui-monospace, monospace'; c.textBaseline = 'top'; c.textAlign = 'left';
+    const tw = c.measureText(lab).width + 8; c.fillStyle = 'rgba(107,63,115,0.85)'; c.fillRect(Math.round(xa) + 1, LM.t + 1, tw, 15);
+    c.fillStyle = '#fff'; c.fillText(lab, Math.round(xa) + 5, LM.t + 3);
+  }
   drawSegButtons(c, s, env);
   if (!recording && env.length <= 40) { c.fillStyle = '#266268'; env.forEach(p => { c.beginPath(); c.arc(XL(s0 + p[0] * sl), VY(p[1]), 4, 0, Math.PI * 2); c.fill(); }); }
   if (!recording && selPoint != null && env[selPoint]) {
@@ -6595,18 +6608,102 @@ const LFO_SLIDERS = [
   ['lfoEdge', 'edge', v => Math.round(v * 100) + '%'],
 ];
 const LFO_DEF = { amp_db: 9, baseline_db: -12, phase: 0, fskew: 0, askew: 0, tilt: 0, pw: 0.5, edge: 0.15 };
+// v80: an LFO is ONE envelope written onto a lane (loudness, one note, pan, spread or a modulation lane), as REAPER's
+// automation-item LFO: shape, baseline and depth make the points across its section; outside it the lane keeps its
+// drawn points. Its settings stay with the lane (lane_lfo / mods[i].lfo) so it stays editable, and the points are what
+// plays, so the Mac hears it with no extra maths. s.lfo (the older loudness-only LFO, from saved sketches) still plays.
+const laneLfoKey = () => panMode() ? 'pan' : spreadMode() ? 'spread' : (state.envTarget === 'unit' ? 'vol' : 'note:' + state.envTarget);
+function laneLfo(s) {
+  if (!s) return null;
+  if (modIdx() >= 0) { const m = modLane(s); return (m && m.lfo) || null; }
+  return (s.lane_lfo && s.lane_lfo[laneLfoKey()]) || null;
+}
+function setLaneLfo(s, f) {
+  if (!s) return;
+  if (modIdx() >= 0) { const m = modLane(s); if (!m) return; if (f) m.lfo = f; else delete m.lfo; return; }
+  const k = laneLfoKey();
+  if (f) { s.lane_lfo = s.lane_lfo || {}; s.lane_lfo[k] = f; }
+  else if (s.lane_lfo) { delete s.lane_lfo[k]; if (!Object.keys(s.lane_lfo).length) delete s.lane_lfo; }
+}
+function curLfo(s) {
+  if (!s) return null;
+  if (!valMode() && state.envTarget === 'unit' && s.lfo) return { f: s.lfo, legacy: true };
+  const f = laneLfo(s); return f ? { f, legacy: false } : null;
+}
+function newLaneLfo(s) {
+  const cur = targetEnv(s), mid = envAt(cur, 0.5), f = newLfo();
+  delete f.ride; delete f.baseline_db; delete f.amp_db;
+  if (!valMode()) { f.baseline = 0.8; f.amp = 0.15; }            // −12 dB, ± 9 dB
+  else { f.baseline = +mid.toFixed(3); f.amp = +Math.max(0.1, Math.min(panMode() ? 0.5 : 0.3, mid, 1 - mid)).toFixed(3); }
+  f.under = cur.map(p => p.slice());
+  return f;
+}
+function lfoEdgeW(f, u) {
+  if (!f.range) return 1;
+  const a = f.range[0], b = f.range[1]; if (u <= a || u >= b) return 0;
+  const x = (u - a) / (b - a), e = f.edge ?? 0.15;
+  return e > 0 ? smooth01(Math.min(x / e, 1)) * smooth01(Math.min((1 - x) / e, 1)) : 1;
+}
+// the lane without the LFO: drawn points outside the section it last covered, the original points inside it
+function lfoBase(s, f) {
+  const cur = targetEnv(s), g = f.gen; if (!g) return cur.map(p => p.slice());
+  const under = f.under && f.under.length > 1 ? f.under : cur;
+  const seg = (x0, x1) => { const o = []; for (let k = 1; k < 12; k++) { const u = x0 + (x1 - x0) * k / 12; o.push([+u.toFixed(5), +envAt(under, u).toFixed(4), 'lin', 0.5]); } return o; };
+  const outL = cur.filter(p => p[0] < g[0] - 1e-6).map(p => p.slice()), outR = cur.filter(p => p[0] > g[1] + 1e-6).map(p => p.slice());
+  const ins = under.filter(p => p[0] > g[0] + 1e-6 && p[0] < g[1] - 1e-6).map(p => p.slice());
+  let mid = [[g[0], +envAt(under, g[0]).toFixed(4), 'lin', 0.5]];
+  if (ins.length) { mid = mid.concat(seg(g[0], ins[0][0]), ins.slice(0, -1)); const last = ins[ins.length - 1]; last[2] = 'lin'; mid = mid.concat([last], seg(last[0], g[1])); }
+  else mid = mid.concat(seg(g[0], g[1]));
+  mid.push([g[1], +envAt(under, g[1]).toFixed(4), 'lin', 0.5]);
+  if (outL.length) outL[outL.length - 1][2] = outL[outL.length - 1][2] || 'lin';
+  return outL.concat(mid, outR);
+}
+function regenLaneLfo(s) {
+  const f = laneLfo(s); if (!f) return;
+  const [s0, s1] = unitSpan(s), span = Math.max(s1 - s0, 0.001), a = f.range ? f.range[0] : 0, b = f.range ? f.range[1] : 1;
+  const base = lfoBase(s, f), wave = Object.assign({}, f, { amp_db: 1, edge: 0 });
+  const n = Math.max(48, Math.min(3000, Math.round(lfoCycles(f, span * (b - a)) * 32)));
+  // the drawn points outside the section stay as they are (curves included); the partial segments next to the
+  // section are sampled so their shape doesn't change
+  const before = base.filter(p => p[0] < a - 1e-6).map(p => p.slice()), after = base.filter(p => p[0] > b + 1e-6).map(p => p.slice());
+  const bridge = (x0, x1) => { const o = []; for (let k = 1; k < 12; k++) { const u = x0 + (x1 - x0) * k / 12; o.push([+u.toFixed(5), +envAt(base, u).toFixed(4), 'lin', 0.5]); } return o; };
+  const raw = [];
+  for (let i = 0; i <= n; i++) {
+    const u = a + (b - a) * i / n, ui = f.range ? clamp(u, a + 1e-6, b - 1e-6) : u, ew = lfoEdgeW(f, ui);
+    const lv = clamp(f.baseline + f.amp * lfoOffsetDb(wave, ui, span), 0, 1);
+    raw.push([u, ew >= 1 ? lv : envAt(base, u) * (1 - ew) + lv * ew]);
+  }
+  if (f.range && (f.edge ?? 0.15) <= 0) { raw.unshift([a, envAt(base, a)]); raw.push([b, envAt(base, b)]); }
+  const mid = simplify(raw.map(q => [q[0] * 2000, (1 - q[1]) * 600]), 0.6).map(([x, y]) => [+(x / 2000).toFixed(5), +clamp(1 - y / 600, 0, 1).toFixed(4), 'lin', 0.5]);
+  let pts = [];
+  if (before.length) { before[before.length - 1][2] = 'lin'; pts = before.concat(bridge(before[before.length - 1][0], a)); }
+  pts = pts.concat(mid);
+  if (after.length) pts = pts.concat(bridge(b, after[0][0]), after);
+  pts[0][0] = 0; pts[pts.length - 1][0] = 1;
+  setTargetEnv(s, pts); f.gen = [a, b];
+}
+// the value shown on the Depth and Baseline sliders, in the lane's own terms
+function laneValFmt(s, v, isAmp) {
+  if (!valMode()) return isAmp ? '±' + (v * ENV_DB).toFixed(1) + ' dB' : vToDb(v) + ' dB';
+  if (panMode()) return isAmp ? '±' + Math.round(v * 200) + '%' : (Math.abs(v - 0.5) < 0.005 ? 'C' : (v < 0.5 ? 'L ' : 'R ') + Math.round(Math.abs(v - 0.5) * 200));
+  const ml = modLane(s), pr = ml && layerSoundOf(s), d = ml && pr && modDef(pr.engine, ml.k);
+  if (d && !isAmp) return modFmt(d, modDenorm(d, v)) + (modUnit(d) ? ' ' + modUnit(d) : '');
+  return (isAmp ? '±' : '') + Math.round(v * 100) + '%';
+}
+const lfoKey = (cl, key) => cl.legacy ? key : key === 'amp_db' ? 'amp' : key === 'baseline_db' ? 'baseline' : key;
+function lfoAfter(s, cl) { if (cl && !cl.legacy) regenLaneLfo(s); }
 function renderLfoNote() {
-  const s = selUnit(), el = $('lfoRangeNote'); if (!s || !s.lfo) return;
-  el.textContent = s.lfo.range ? `Section ${lfoTime(s, s.lfo.range[0])} → ${lfoTime(s, s.lfo.range[1])}` : 'Whole unit';
+  const s = selUnit(), cl = curLfo(s), el = $('lfoRangeNote'); if (!cl) return;
+  el.textContent = cl.f.range ? `Section ${lfoTime(s, cl.f.range[0])} → ${lfoTime(s, cl.f.range[1])}` : 'Whole object';
 }
 function renderLfo() {
-  const s = selUnit(), f = s && s.lfo;
+  const s = selUnit(), cl = curLfo(s), f = cl && cl.f;
   $('lfoBtn').textContent = f ? 'LFO ~' : 'LFO';
   $('lfoBtn').classList.toggle('on', !!f && lfoOpen);
   $('secBtn').classList.toggle('on', lfoSec);
   $('secBtn').setAttribute('aria-pressed', lfoSec ? 'true' : 'false');
-  $('lfoRow').hidden = !(f && lfoOpen && !valMode());
-  $('lfoMoreRow').hidden = !(f && lfoOpen && lfoMore && !valMode());
+  $('lfoRow').hidden = !(f && lfoOpen);
+  $('lfoMoreRow').hidden = !(f && lfoOpen && lfoMore);
   if (!f) return;
   $('lfoShape').value = f.shape || 'sine';
   const hz = f.rate_mode === 'hz';
@@ -6614,9 +6711,16 @@ function renderLfo() {
   $('lfoRate').value = rateToUi(f);
   $('lfoRateOut').textContent = hz ? (f.hz ?? 4) + ' Hz' : String(f.cycles ?? 8);
   $('lfoMode').textContent = hz ? 'Rate: Hz' : 'Rate: cycles';
-  for (const [id, key, fmt] of LFO_SLIDERS) { const v = f[key] ?? LFO_DEF[key]; $(id).value = v; $(id + 'Out').textContent = fmt(v); }
+  const rng = (id, lo, hi, st) => { const el = $(id); el.min = lo; el.max = hi; el.step = st; };
+  if (cl.legacy) { rng('lfoAmp', 0, 60, 0.5); rng('lfoBase', -60, 0, 0.5); } else { rng('lfoAmp', 0, 1, 0.001); rng('lfoBase', 0, 1, 0.001); }
+  for (const [id, key, fmt] of LFO_SLIDERS) {
+    const k = lfoKey(cl, key), v = f[k] ?? LFO_DEF[key];
+    $(id).value = v;
+    $(id + 'Out').textContent = !cl.legacy && (key === 'amp_db' || key === 'baseline_db') ? laneValFmt(s, v, key === 'amp_db') : fmt(v);
+  }
   $('lfoRide').checked = f.ride !== false;
-  $('lfoBaseL').style.display = f.ride === false ? '' : 'none';
+  $('lfoRide').parentElement.style.display = cl.legacy ? '' : 'none';
+  $('lfoBaseL').style.display = (!cl.legacy || f.ride === false) ? '' : 'none';
   $('lfoTiltL').style.display = (f.shape === 'sine' || f.shape === 'triangle') ? '' : 'none';
   $('lfoPwL').style.display = f.shape === 'square' ? '' : 'none';
   $('lfoSeed').style.display = (f.shape === 'random' || f.shape === 'random_smooth') ? '' : 'none';
@@ -6624,6 +6728,8 @@ function renderLfo() {
   $('lfoWhole').disabled = !f.range;
   $('lfoMore').hidden = lfoMore;
   $('lfoPreset').value = '';
+  $('lfoBake').textContent = cl.legacy ? 'Bake' : 'Keep as points';
+  $('lfoBake').title = cl.legacy ? 'Write the LFO into envelope points to edit by hand' : 'Keep the points the LFO wrote and drop its controls, to edit them by hand';
   renderLfoNote();
 }
 function lfoTouch(key) {            // one undo step per slider drag
@@ -6640,49 +6746,67 @@ $('lfoShape').innerHTML = LFO_SHAPES.map(([k, l]) => `<option value="${k}">${l}<
 $('lfoPreset').innerHTML = '<option value="">Presets…</option>' + LFO_PRESETS.map((p, i) => `<option value="${i}">${p.name}</option>`).join('');
 $('lfoBtn').addEventListener('click', () => {
   const s = selUnit(); if (!s) return;
-  if (!s.lfo) { pushUndo(); s.lfo = newLfo(); lfoOpen = true; lfoMore = false; changed(false); status('LFO added: a sine across the whole object. Section picks part of it.'); }
-  else lfoOpen = !lfoOpen;
+  if (!curLfo(s)) {
+    pushUndo(); setLaneLfo(s, newLaneLfo(s)); regenLaneLfo(s); lfoOpen = true; lfoMore = false; changed(false);
+    status('LFO on this lane: shape, cycles, depth and baseline below. Section puts it on part of the object; Keep as points lets you edit it by hand.');
+  } else lfoOpen = !lfoOpen;
   renderLfo(); requestDraw();
 });
 $('secBtn').addEventListener('click', () => {
   lfoSec = !lfoSec; renderLfo();
-  status(lfoSec ? 'Drag across the envelope lane to choose the LFO section (with a keyboard, ⇧-drag works any time).' : 'Section mode off.');
+  status(lfoSec ? 'Drag across the lane to choose the LFO section (with a keyboard, ⇧-drag works any time).' : 'Section mode off.');
 });
-$('lfoShape').addEventListener('change', e => { const s = selUnit(); if (!s || !s.lfo) return; pushUndo(); s.lfo.shape = e.target.value; changed(false); renderLfo(); });
-$('lfoRate').addEventListener('input', e => {
-  const s = selUnit(); if (!s || !s.lfo) return; lfoTouch('rate');
-  const f = s.lfo, v = uiToRate(f, +e.target.value);
+const withLfo = fn => { const s = selUnit(), cl = curLfo(s); if (!s || !cl) return; fn(s, cl, cl.f); };
+$('lfoShape').addEventListener('change', e => withLfo((s, cl, f) => { pushUndo(); f.shape = e.target.value; lfoAfter(s, cl); changed(false); renderLfo(); }));
+$('lfoRate').addEventListener('input', e => withLfo((s, cl, f) => {
+  lfoTouch('rate');
+  const v = uiToRate(f, +e.target.value);
   if (f.rate_mode === 'hz') f.hz = v; else f.cycles = v;
   $('lfoRateOut').textContent = f.rate_mode === 'hz' ? v + ' Hz' : String(v);
-});
+  lfoAfter(s, cl);
+}));
 $('lfoRate').addEventListener('change', lfoDone);
 for (const [id, key, fmt] of LFO_SLIDERS) {
-  $(id).addEventListener('input', e => { const s = selUnit(); if (!s || !s.lfo) return; lfoTouch(key); s.lfo[key] = +e.target.value; $(id + 'Out').textContent = fmt(+e.target.value); });
+  $(id).addEventListener('input', e => withLfo((s, cl, f) => {
+    lfoTouch(key); const v = +e.target.value; f[lfoKey(cl, key)] = v;
+    $(id + 'Out').textContent = !cl.legacy && (key === 'amp_db' || key === 'baseline_db') ? laneValFmt(s, v, key === 'amp_db') : fmt(v);
+    lfoAfter(s, cl);
+  }));
   $(id).addEventListener('change', lfoDone);
 }
-$('lfoRide').addEventListener('change', e => { const s = selUnit(); if (!s || !s.lfo) return; pushUndo(); s.lfo.ride = e.target.checked; changed(false); renderLfo(); });
-$('lfoMode').addEventListener('click', () => {
-  const s = selUnit(); if (!s || !s.lfo) return; pushUndo();
-  const f = s.lfo, [a, b] = unitSpan(s), span = (b - a) * (f.range ? f.range[1] - f.range[0] : 1);
+$('lfoRide').addEventListener('change', e => withLfo((s, cl, f) => { pushUndo(); f.ride = e.target.checked; changed(false); renderLfo(); }));
+$('lfoMode').addEventListener('click', () => withLfo((s, cl, f) => {
+  pushUndo();
+  const [a, b] = unitSpan(s), span = (b - a) * (f.range ? f.range[1] - f.range[0] : 1);
   // keep the same speed when switching: cycles = Hz × the LFO's length
   if (f.rate_mode === 'hz') { f.cycles = +clamp((f.hz ?? 4) * span, 0.25, 2000).toPrecision(3); f.rate_mode = 'cycles'; }
   else { f.hz = +clamp((f.cycles ?? 8) / Math.max(span, 0.001), 0.02, 40).toPrecision(3); f.rate_mode = 'hz'; }
-  changed(false); renderLfo();
-});
-$('lfoWhole').addEventListener('click', () => { const s = selUnit(); if (!s || !s.lfo) return; pushUndo(); delete s.lfo.range; changed(false); renderLfo(); status('The LFO applies to the whole object.'); });
+  lfoAfter(s, cl); changed(false); renderLfo();
+}));
+$('lfoWhole').addEventListener('click', () => withLfo((s, cl, f) => { pushUndo(); delete f.range; lfoAfter(s, cl); changed(false); renderLfo(); status('The LFO covers the whole object.'); }));
 $('lfoMore').addEventListener('click', () => { lfoMore = true; renderLfo(); });
 $('lfoLess').addEventListener('click', () => { lfoMore = false; renderLfo(); });
-$('lfoRemove').addEventListener('click', () => { const s = selUnit(); if (!s || !s.lfo) return; pushUndo(); delete s.lfo; lfoOpen = false; changed(false); renderLfo(); status('LFO removed.'); });
-$('lfoSeed').addEventListener('click', () => { const s = selUnit(); if (!s || !s.lfo) return; pushUndo(); s.lfo.seed = newSeed(); changed(false); });
-$('lfoPreset').addEventListener('change', e => {
-  const s = selUnit(), i = e.target.value; if (!s || i === '') return;
+$('lfoRemove').addEventListener('click', () => withLfo((s, cl, f) => {
   pushUndo();
-  const keep = s.lfo ? { ride: s.lfo.ride, range: s.lfo.range, edge: s.lfo.edge } : {};
-  s.lfo = Object.assign(JSON.parse(JSON.stringify(LFO_PRESETS[+i].lfo)), { seed: newSeed() });
-  for (const k in keep) if (keep[k] !== undefined) s.lfo[k] = keep[k];
-  changed(false); renderLfo(); status('LFO preset: ' + LFO_PRESETS[+i].name);
+  if (cl.legacy) delete s.lfo;
+  else { setTargetEnv(s, lfoBase(s, f)); setLaneLfo(s, null); }
+  lfoOpen = false; changed(false); renderLaneHeader(); status('LFO removed; the lane is as it was drawn.');
+}));
+$('lfoSeed').addEventListener('click', () => withLfo((s, cl, f) => { pushUndo(); f.seed = newSeed(); lfoAfter(s, cl); changed(false); }));
+$('lfoPreset').addEventListener('change', e => {
+  const i = e.target.value; if (i === '') return;
+  withLfo((s, cl, f) => {
+    pushUndo();
+    const P = JSON.parse(JSON.stringify(LFO_PRESETS[+i].lfo));
+    for (const k of ['shape', 'rate_mode', 'cycles', 'hz', 'phase', 'fskew', 'askew', 'tilt', 'pw']) if (P[k] !== undefined) f[k] = P[k];
+    if (cl.legacy) f.amp_db = P.amp_db; else if (!valMode()) f.amp = +(P.amp_db / ENV_DB).toFixed(3);
+    f.seed = newSeed(); lfoAfter(s, cl);
+    changed(false); renderLfo(); status('LFO preset: ' + LFO_PRESETS[+i].name);
+  });
 });
 $('lfoBake').addEventListener('click', () => {
+  const s0 = selUnit(), c0 = curLfo(s0);
+  if (c0 && !c0.legacy) { pushUndo(); setLaneLfo(s0, null); lfoOpen = false; changed(false); renderLaneHeader(); status('The LFO\'s points are now ordinary points: edit them by hand.'); return; }
   const s = selUnit(); if (!s || !s.lfo) return;
   pushUndo();
   const ev = heardEnv(s), cyc = lfoCycles(s.lfo, (() => { const [a, b] = unitSpan(s); return (b - a) * (s.lfo.range ? s.lfo.range[1] - s.lfo.range[0] : 1); })());
@@ -7232,7 +7356,7 @@ resize();
   const bShape = mk('mShape', 'Shape ▾', 'Load a shape onto this lane, or save this one');
   const bCurve = mk('mCurve', 'Curve ▾', 'How the line bends between points');
   const bStack = mk('mStack', 'Stack ▾', "Show the object's other lanes above the one you are editing");
-  const bEdit = mk('mEdit', 'Edit ▾', 'Copy, paste, reduce points, delete point, reset, LFO');
+  const bEdit = mk('mEdit', 'Edit ▾', 'Copy, paste, reduce points, delete point, clear');
   const pLane = pop('popLane'), pShape = pop('popShape'), pCurve = pop('popCurve'), pStack = pop('popStack'), pEdit = pop('popEdit');
   head(pLane, 'Lanes of this object'); const laneList = document.createElement('div'); laneList.className = 'llist'; pLane.appendChild(laneList);
   pLane.appendChild(segs); segs.hidden = true; $('modChips').hidden = true;
@@ -7254,10 +7378,11 @@ resize();
     if (p) { LL.set(p.dataset.lane); setTimeout(close, 0); return; }
     if (y) { LL.eye(s, y.dataset.eye); renderLaneList(); }
   });
-  head(pShape, 'Shapes'); pShape.appendChild(shapeRow);
+  head(pShape, 'LFO'); row(pShape, ['lfoBtn']); head(pShape, 'Shapes'); pShape.appendChild(shapeRow);
+  $('lfoWhole').before($('secBtn'));
   head(pCurve, 'Curve'); pCurve.appendChild(curveRow);
   head(pStack, 'Stack'); row(pStack, ['laneStackBtn']); pStack.appendChild(stackRow);
-  head(pEdit, 'Edit'); row(pEdit, ['copyEnv', 'pasteEnv', 'reduceBtn', 'delPoint', 'resetEnv']); head(pEdit, 'LFO'); row(pEdit, ['lfoBtn', 'secBtn']);
+  head(pEdit, 'Edit'); row(pEdit, ['copyEnv', 'pasteEnv', 'reduceBtn', 'delPoint', 'resetEnv']); 
   $('laneStackBtn').textContent = 'Show the stack';
   let ref = $('laneUnit'); [bLane, bShape, bCurve, bStack, bEdit].forEach(b => { ref.after(b); ref = b; });
   const menus = [[bLane, pLane], [bShape, pShape], [bCurve, pCurve], [bStack, pStack], [bEdit, pEdit]];
@@ -7273,7 +7398,7 @@ resize();
   document.addEventListener('pointerdown', e => { if (!menus.some(([b, p]) => p.contains(e.target) || b.contains(e.target))) close(); }, true);
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && menus.some(([, p]) => !p.hidden)) close(); }, true);
   pLane.addEventListener('click', e => { if (e.target.closest('#laneVol, #lanePan, #laneSpread, [data-mod]')) setTimeout(close, 0); }, true);
-  pShape.addEventListener('click', e => { if (e.target.closest('#shapes button, #shapes .chip')) setTimeout(close, 0); }, true);
+  pShape.addEventListener('click', e => { if (e.target.closest('#shapes button, #shapes .chip, #lfoBtn')) setTimeout(close, 0); }, true);
   pEdit.addEventListener('click', e => { if (e.target.closest('button')) setTimeout(close, 0); }, true);
   const setT = (b, t) => { if (b.textContent !== t) b.textContent = t; };
   const upd = () => {
@@ -7288,7 +7413,7 @@ resize();
 </script>
 
 <script>
-/* Standalone build v79-20261110-0821-fbfbb6: keep the app on the iPad so it opens with no internet. */
+/* Standalone build v80-20261110-0838-ed02db: keep the app on the iPad so it opens with no internet. */
 if ('serviceWorker' in navigator) window.addEventListener('load', () => {
   // an update downloads in the background; when it takes over, say so and offer a reload (the open sketch is kept on the iPad)
   const had = !!navigator.serviceWorker.controller;
