@@ -528,7 +528,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
     <label>Name <input id="mrName" type="text" autocomplete="off" style="width: 14em" aria-label="Name"></label>
     <span class="selrow"><button class="btn primary" id="mrOk">Done</button><button class="btn warn" id="mrDel">Delete</button><button class="btn" id="mrCancel">Cancel</button></span></div>
   <div class="askbar" id="askBar" hidden><span id="askText"></span><span class="selrow" id="askBtns"></span></div>
-  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v81</span></div>
+  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v82</span></div>
 </div>
 
 <div class="laypop" id="layerDots" role="menu" aria-label="Layer to draw on" hidden></div>
@@ -6424,16 +6424,36 @@ let envMarks = true; try { envMarks = localStorage.getItem(MARK_KEY) !== '0'; } 
 const laneMark = m => m === 'vol' ? 'L' : m === 'pan' ? 'P' : m === 'spread' ? 'S' : String(+m[3] + 1);
 const drawnLanes = s => LANE_ORDER.filter(m => laneExists(s, m) && laneDrawn(s, m));
 let markRects = [];
+// v82: the marks sit just above where the object's graphic STARTS (its top at its first moment, not the top of its
+// whole box), and scroll with it: off the left edge they go out of view instead of piling up there.
+function startTopY(u, b) {
+  try {
+    if (u.kind === 'cloud') { const hi = u.edges.hi.slice().sort((p, q) => p[0] - q[0]); return Y(hi[0][1]) - 6; }
+    if (u.kind === 'pulse') {
+      const f0 = pulsePath(u)[0][1], np = Math.max(1, Math.round(u.params.partials || 1));
+      let top = f0; if (np > 1) for (const r of partialRatios(u.params.partial_set, np, u.f_hz)) top = Math.max(top, f0 * r);
+      return Y(top) - 9;
+    }
+    if (u.points && u.points.length) {
+      let t0 = Infinity, t1 = -Infinity; for (const p of u.points) { t0 = Math.min(t0, p[0]); t1 = Math.max(t1, p[0]); }
+      const win = Math.max(0.05, (t1 - t0) * 0.04), k = u.kind === 'line' ? 1 : Math.pow(2, ((u.params && u.params.width_oct) || 0) / 2 * (1 - clamp((u.params && u.params.edge_fade) || 0, 0, 0.9)));   // the faded edge barely shows
+      let top = 0; for (const p of u.points) if (p[0] <= t0 + win) top = Math.max(top, p[1] * k);
+      if (top > 0) return Y(top) - (u.kind === 'line' ? 8 : 4);
+    }
+  } catch (e) { }
+  return b.y0;
+}
 function drawEnvMarks(g) {
   markRects = [];
   if (!envMarks) return;
-  g.save(); g.font = '600 9.5px "IBM Plex Mono", ui-monospace, Menlo, monospace'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.save(); g.beginPath(); g.rect(M.l, 0, W - M.l - M.r, H); g.clip(); g.font = '600 9.5px "IBM Plex Mono", ui-monospace, Menlo, monospace'; g.textAlign = 'center'; g.textBaseline = 'middle';
   for (const u of state.strokes) {
     if (u.kind === 'splash' || !state.visible[u.layer] || layerMode(u.layer) !== 'full') continue;
     const list = drawnLanes(u); if (!list.length) continue;
     const b = strokeBox(u), sel = selSet().includes(u);
-    let x = Math.max(b.x0, M.l + 2), y = b.y0 - 14; if (y < M.t + 1) y = b.y0 + 2;
-    if (x > W - M.r) continue;
+    const top = startTopY(u, b);
+    let x = b.x0 + 2, y = top - 14; if (y < M.t + 1) y = top + 2;
+    if (x > W - M.r || x + list.length * 15 < M.l) continue;
     for (const m of list) {
       const w = 13, h = 12, on = sel && state.laneMode === m;
       g.globalAlpha = sel ? 1 : 0.72;
@@ -7412,7 +7432,7 @@ resize();
 </script>
 
 <script>
-/* Standalone build v81-20261110-0848-8e03fd: keep the app on the iPad so it opens with no internet. */
+/* Standalone build v82-20261110-0858-234783: keep the app on the iPad so it opens with no internet. */
 if ('serviceWorker' in navigator) window.addEventListener('load', () => {
   // an update downloads in the background; when it takes over, say so and offer a reload (the open sketch is kept on the iPad)
   const had = !!navigator.serviceWorker.controller;
