@@ -526,7 +526,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
     <label>Name <input id="mrName" type="text" autocomplete="off" style="width: 14em" aria-label="Name"></label>
     <span class="selrow"><button class="btn primary" id="mrOk">Done</button><button class="btn warn" id="mrDel">Delete</button><button class="btn" id="mrCancel">Cancel</button></span></div>
   <div class="askbar" id="askBar" hidden><span id="askText"></span><span class="selrow" id="askBtns"></span></div>
-  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v76</span></div>
+  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v77</span></div>
 </div>
 
 <div class="laypop" id="layerDots" role="menu" aria-label="Layer to draw on" hidden></div>
@@ -5377,10 +5377,14 @@ playBtn.addEventListener('click', () => {
     const lat = soundDelay();   // v72: the sound reaches the ears this much later (AirPods: 0.15–0.3 s)
     const acPos = ac.currentTime - playing.start - lat;
     const wallPos = playing.from + (performance.now() - playing.wall) / 1000 - 0.12 - lat;
-    const running = ac.state === 'running' && ac.currentTime > playing.lastAc - 1e-6 && (ac.currentTime !== playing.lastAc || performance.now() - playing.wall < 300);
-    const pos = running ? acPos : wallPos;
-    if (ac.currentTime !== playing.lastAc) playing.lastAc = ac.currentTime;
-    if (!running && !playing.warned && performance.now() - playing.wall > 1200) {
+    // v77: the iPad moves its audio clock in chunks, so it often reads the same on two screen frames in a row. Only a clock
+    // that hasn't moved for 1.5 s counts as stopped (v72 counted a single unchanged frame, and cut playback off by mistake).
+    const now = performance.now();
+    if (ac.currentTime !== playing.lastAc) { playing.lastAc = ac.currentTime; playing.lastMove = now; }
+    const still = now - (playing.lastMove || playing.wall);
+    const running = ac.state === 'running' && still < 300;
+    const pos = running || still < 1500 ? acPos : wallPos;
+    if (still > 1500 && !playing.warned) {
       playing.warned = true;
       // v72: the audio clock isn't moving: restart the sound engine instead of leaving the app silent
       stopPlay(); rebuildAudio();
@@ -7261,7 +7265,7 @@ resize();
 </script>
 
 <script>
-/* Standalone build v76-20261109-1807-9781f0: keep the app on the iPad so it opens with no internet. */
+/* Standalone build v77-20261110-0813-d4dd0e: keep the app on the iPad so it opens with no internet. */
 if ('serviceWorker' in navigator) window.addEventListener('load', () => {
   // an update downloads in the background; when it takes over, say so and offer a reload (the open sketch is kept on the iPad)
   const had = !!navigator.serviceWorker.controller;
