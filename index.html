@@ -526,7 +526,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
     <label>Name <input id="mrName" type="text" autocomplete="off" style="width: 14em" aria-label="Name"></label>
     <span class="selrow"><button class="btn primary" id="mrOk">Done</button><button class="btn warn" id="mrDel">Delete</button><button class="btn" id="mrCancel">Cancel</button></span></div>
   <div class="askbar" id="askBar" hidden><span id="askText"></span><span class="selrow" id="askBtns"></span></div>
-  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v75</span></div>
+  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v76</span></div>
 </div>
 
 <div class="laypop" id="layerDots" role="menu" aria-label="Layer to draw on" hidden></div>
@@ -1758,6 +1758,9 @@ const SHAPES = [
   { name: 'Breath', pts: withCurve([[0, 0], [0.4, 0.9], [0.55, 0.75], [0.65, 0.2], [0.75, 0.6], [1, 0]], 'smooth') },
   { name: 'Tremolo', pts: withCurve(Array.from({ length: 17 }, (_, i) => [+(i / 16).toFixed(4), i % 2 ? 0.95 : 0.2]), 's') },
   { name: 'Pluck', pts: [[0, 0, 'lin'], [0.02, 1, 'log', 0.75], [1, 0, 'lin']] },
+  // v76: reverse attack. Exponential rise to the peak, then a steep damped drop to silence. Drag the peak to move the drop;
+  // because it ends at silence, the sound's release tail is silent too: a dramatic stop, without a click.
+  { name: 'Reverse', pts: [[0, 0, 'exp', 0.7], [0.9, 1, 'log', 0.9], [1, 0, 'lin']] },
 ];
 const SHAPES_KEY = 'lh-spectral-palette-shapes-v1';
 let userShapes = [];
@@ -7258,7 +7261,7 @@ resize();
 </script>
 
 <script>
-/* Standalone build v75-20261109-1803-bdbd5b: keep the app on the iPad so it opens with no internet. */
+/* Standalone build v76-20261109-1807-9781f0: keep the app on the iPad so it opens with no internet. */
 if ('serviceWorker' in navigator) window.addEventListener('load', () => {
   // an update downloads in the background; when it takes over, say so and offer a reload (the open sketch is kept on the iPad)
   const had = !!navigator.serviceWorker.controller;
