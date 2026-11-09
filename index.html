@@ -528,7 +528,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
     <label>Name <input id="mrName" type="text" autocomplete="off" style="width: 14em" aria-label="Name"></label>
     <span class="selrow"><button class="btn primary" id="mrOk">Done</button><button class="btn warn" id="mrDel">Delete</button><button class="btn" id="mrCancel">Cancel</button></span></div>
   <div class="askbar" id="askBar" hidden><span id="askText"></span><span class="selrow" id="askBtns"></span></div>
-  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v86</span></div>
+  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v87</span></div>
 </div>
 
 <div class="laypop" id="layerDots" role="menu" aria-label="Layer to draw on" hidden></div>
@@ -5310,19 +5310,33 @@ const playBtn = document.getElementById('play');
 // v23: play the selected unit once, on demand (nothing plays by itself when a unit is placed)
 let unitPlay = null;
 const unitBtn = document.getElementById('playUnit');
+// v87: the play head also moves while one object (or a selection) plays on its own
+let objHead = null;
+function followObjHead(a, b, start) {
+  const tok = objHead = {};
+  const step = () => {
+    if (objHead !== tok || playing) return;
+    const pos = a + (ac.currentTime - start - soundDelay());
+    if (pos > b) { objHead = null; playhead = null; requestDraw(); return; }
+    playhead = clamp(pos, a, b); requestDraw(); requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
 function stopUnitPlay() {
+  if (objHead && !playing) { objHead = null; playhead = null; requestDraw(); }
   if (!unitPlay) return;
   const u = unitPlay; unitPlay = null; clearTimeout(u.timer);
   try { u.bus.gain.setTargetAtTime(0, ac.currentTime, 0.03); } catch (e) { }
   setTimeout(() => { (u.oscs || []).forEach(o => { try { o.stop(); } catch (e) { } }); try { u.bus.disconnect(); } catch (e) { } }, 250);
-  unitBtn.textContent = '▶ Unit'; unitBtn.classList.remove('on');
+  unitBtn.textContent = '▶ Object'; unitBtn.classList.remove('on');
 }
 function playUnitsNow(list) {
   if (!list.length || !ensureAudio()) return;
   if (list.length === 1) { playUnitNow(list[0]); return; }
   const [a, b] = selBounds(list), v = [].concat(...list.map(u => unitVoices(u).map(x => ({ ...x, t0: x.t0 - a }))));
   const bus = ac.createGain(); bus.gain.value = voiceGain(Math.max(1, v.length / 2)); bus.connect(master);
-  schedule(v, ac.currentTime + 0.03, bus); setTimeout(() => bus.disconnect(), (b - a + 8) * 1000);
+  const st = ac.currentTime + 0.03; schedule(v, st, bus); setTimeout(() => bus.disconnect(), (b - a + 8) * 1000);
+  followObjHead(a, b, st);
 }
 function playSelUnit() {
   if (unitPlay) { stopUnitPlay(); return; }
@@ -5333,9 +5347,10 @@ function playSelUnit() {
   stopPlay(); if (typeof stopLoop === 'function') stopLoop();
   const [a, b] = unitSpan(s), v = unitVoices(s).map(x => ({ ...x, t0: x.t0 - a }));
   const bus = ac.createGain(); bus.gain.value = voiceGain(s.kind === 'splash' ? v.length : Math.max(1, v.length / 2)); bus.connect(master);
-  const oscs = schedule(v, ac.currentTime + 0.03, bus);
+  const st = ac.currentTime + 0.03, oscs = schedule(v, st, bus);
   unitPlay = { bus, oscs, timer: setTimeout(stopUnitPlay, (b - a + 1.2) * 1000) };
-  unitBtn.textContent = '■ Unit'; unitBtn.classList.add('on');
+  followObjHead(a, b, st);
+  unitBtn.textContent = '■ Object'; unitBtn.classList.add('on');
 }
 unitBtn.addEventListener('click', playSelUnit);
 function stopPlay() {
@@ -7453,7 +7468,7 @@ resize();
 </script>
 
 <script>
-/* Standalone build v86-20261110-0912-4dd419: keep the app on the iPad so it opens with no internet. */
+/* Standalone build v87-20261110-0915-5938d7: keep the app on the iPad so it opens with no internet. */
 if ('serviceWorker' in navigator) window.addEventListener('load', () => {
   // an update downloads in the background; when it takes over, say so and offer a reload (the open sketch is kept on the iPad)
   const had = !!navigator.serviceWorker.controller;
