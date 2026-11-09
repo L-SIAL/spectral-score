@@ -528,7 +528,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
     <label>Name <input id="mrName" type="text" autocomplete="off" style="width: 14em" aria-label="Name"></label>
     <span class="selrow"><button class="btn primary" id="mrOk">Done</button><button class="btn warn" id="mrDel">Delete</button><button class="btn" id="mrCancel">Cancel</button></span></div>
   <div class="askbar" id="askBar" hidden><span id="askText"></span><span class="selrow" id="askBtns"></span></div>
-  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v78</span></div>
+  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v79</span></div>
 </div>
 
 <div class="laypop" id="layerDots" role="menu" aria-label="Layer to draw on" hidden></div>
@@ -2772,14 +2772,14 @@ function okSilence() {
 }
 let lastHoverT = null, splitArm = false;
 function armSplit() {
-  if (!selSet().length) { status('Select a object first, then Split.'); return; }
+  if (!selSet().length) { status('Select an object first, then Split.'); return; }
   splitArm = true; cv.style.cursor = 'crosshair'; requestDraw();
   status('Split: click (or tap) on the score where you want the cut. Esc cancels.');
 }
 function splitSel(tIn) {
   const t = tIn != null ? tIn : (lastHoverT != null ? lastHoverT : state.playFrom || 0);
   const list = selSet().filter(u => { const [a, b] = unitSpan(u); return t > a + 0.03 && t < b - 0.03; });
-  if (!list.length) { status(selSet().length ? `Nothing to split at ${mmss(t)}: point inside the selected object, then press /.` : 'Select a object, point at where to cut, then press /.'); return; }
+  if (!list.length) { status(selSet().length ? `Nothing to split at ${mmss(t)}: point inside the selected object, then press /.` : 'Select an object, point at where to cut, then press /.'); return; }
   pushUndo();
   const imp = list.filter(u => u.kind === 'splash').length, right = [], ng = uid();
   for (const u of list) { const B = splitUnit(u, t); if (!B) continue; if (u.group) B.group = 'g' + ng; state.strokes.splice(state.strokes.indexOf(u) + 1, 0, B); right.push(B); }
@@ -3355,7 +3355,7 @@ function eraseAt(pt) {
 }
 
 function hint() {
-  return { band: 'Band: draw with the Pencil (pressure = loudness, tilt = sine ↔ noise). Tap a object to select it; drag it with a finger.',
+  return { band: 'Band: draw with the Pencil (pressure = loudness, tilt = sine ↔ noise). Tap an object to select it; drag it with a finger.',
     splash: 'Impulse: tap with the Pencil to stamp a chord burst. Press S (or ✥ Select / move) to move objects with the Pencil.',
     line: 'Line: draw one gliding voice with the Pencil (UPIC-style). Hold ⇧ for a straight line. S to move it.',
     arc: 'Arc: drag from where it starts to where it ends. ⌥ = S-curve, ⇧ = both ends at the same pitch. Drag the round handles to bend it, the ◆ handle up to widen it from a tone into a band.',
@@ -3363,9 +3363,9 @@ function hint() {
     pulse: 'Pulse: drag across time with the Pencil (end higher or lower for a glide; hold ⇧ to keep it flat). Gaps, accelerando and partials are in Settings. S to move it.',
     chord: 'Chord: drag across time to make a chord, then tap pitches in its column to add or remove notes (⌘ = off the semitone grid). Type notes in the panel. Enter = edit / done.',
     block: 'Block: drag a rectangle with the Pencil; the field lines inside it become a chord. Press S to move it.',
-    select: 'Select / move: tap a object to select it, drag it with the Pencil or trackpad to move it, ⌥-drag to copy it. S goes back to drawing.',
-    erase: 'Erase: tap or rub over a object with the Pencil.',
-    shape: 'Shape: tap a object, then drag its handles. Bands, blocks, impulses: corners and edge points; ⊕ adds a point, double-tap removes one. Lines: drag a point, ⊕ adds one, double-tap removes one. Clouds: the same for edge points; drag an edge line to move the whole edge.',
+    select: 'Select / move: tap an object to select it, drag it with the Pencil or trackpad to move it, ⌥-drag to copy it. S goes back to drawing.',
+    erase: 'Erase: tap or rub over an object with the Pencil.',
+    shape: 'Shape: tap an object, then drag its handles. Bands, blocks, impulses: corners and edge points; ⊕ adds a point, double-tap removes one. Lines: drag a point, ⊕ adds one, double-tap removes one. Clouds: the same for edge points; drag an edge line to move the whole edge.',
     annotate: 'Annotate: write, draw arrows and circles, or add notes. Annotations make no sound.' }[state.tool];
 }
 function updateHud(pt, e) {
@@ -5326,7 +5326,7 @@ function playSelUnit() {
   if (unitPlay) { stopUnitPlay(); return; }
   if (selSet().length > 1 && !unitPlay) { playUnitsNow(selSet()); status(`Playing the ${selSet().length} selected objects.`); return; }
   const s = state.strokes.find(x => x.id === state.selected);
-  if (!s) { status('Select a object first, then ▶ Object (or ⇧Space) plays just that object.'); return; }
+  if (!s) { status('Select an object first, then ▶ Object (or ⇧Space) plays just that object.'); return; }
   if (!ensureAudio()) return;
   stopPlay(); if (typeof stopLoop === 'function') stopLoop();
   const [a, b] = unitSpan(s), v = unitVoices(s).map(x => ({ ...x, t0: x.t0 - a }));
@@ -5450,7 +5450,7 @@ function annHint() {
   return { pen: 'Write: draw freely with the Pencil, words, marks, sketches. No sound.',
     arrow: 'Arrow: drag from the start of the arrow to its point.',
     circle: 'Circle: drag across the area to ring it.',
-    note: 'Note: tap a object to give it a note, or tap anywhere else to pin a note to that moment.',
+    note: 'Note: tap an object to give it a note, or tap anywhere else to pin a note to that moment.',
     erase: 'Erase: tap or rub over writing, arrows, circles or note pins.' }[state.annMode];
 }
 document.getElementById('showAnn').addEventListener('change', e => { state.showAnn = e.target.checked; dirty = true; requestDraw(); });
@@ -5697,7 +5697,7 @@ document.addEventListener('keydown', e => {
   if (k === '2') { togglePanel('side'); return; }
   if (k === '3') { document.getElementById('labBox').hidden ? openLab() : closeLab(); return; }
   if (k === 'y') { document.getElementById('libBox').hidden ? openLib() : closeLib(); return; }
-  if (k === 'n') { const u = state.strokes.find(x => x.id === state.selected); if (u) openNote({ unit: u }); else status('Select a object first, or use the ✎ tool’s Note to pin a note anywhere.'); return; }
+  if (k === 'n') { const u = state.strokes.find(x => x.id === state.selected); if (u) openNote({ unit: u }); else status('Select an object first, or use the ✎ tool’s Note to pin a note anywhere.'); return; }
   if (k === 's' || k === 'm') { toggleMove(); return; }
   const tools = { o: 'chord', b: 'band', i: 'splash', k: 'block', p: 'pulse', u: 'line', w: 'arc', c: 'cloud', v: 'select', e: 'erase', h: 'shape', a: 'annotate' };
   if (tools[k]) { setTool(tools[k]); return; }
@@ -5966,7 +5966,7 @@ function renderCurveRow() {
   if (selSeg != null && (!env || selSeg >= env.length - 1)) selSeg = null;
   const cur = env && selSeg != null ? (env[selSeg][2] || 'lin') : null;
   const note = document.getElementById('segNote');
-  note.textContent = !s ? 'Select a object first.' : selSeg == null ? 'Tap the curve to add a point · ⌥-tap or double-tap a point to delete · tap between points or the curve button under a segment to choose its curve' : `Segment ${selSeg + 1} of ${env.length - 1} · drag the ◇ up or down to bend it`;
+  note.textContent = !s ? 'Select an object first.' : selSeg == null ? 'Tap the curve to add a point · ⌥-tap or double-tap a point to delete · tap between points or the curve button under a segment to choose its curve' : `Segment ${selSeg + 1} of ${env.length - 1} · drag the ◇ up or down to bend it`;
   const box = document.getElementById('curveChips');
   box.innerHTML = CURVES.map(cv => `<button class="chip${cv.k === cur ? ' on' : ''}" data-curve="${cv.k}">${cv.label}</button>`).join('');
   box.querySelectorAll('[data-curve]').forEach(b => {
@@ -7091,7 +7091,7 @@ function openLib() { renderLib(); document.getElementById('libBox').hidden = fal
 function closeLib() { stopUnitPlay && stopUnitPlay(); document.getElementById('libBox').hidden = true; }
 function renderLib() {
   const box = document.getElementById('libList');
-  if (!unitLib.length) { box.innerHTML = '<p class="note">No saved objects yet. Select a object and choose Save to library.</p>'; return; }
+  if (!unitLib.length) { box.innerHTML = '<p class="note">No saved objects yet. Select an object and choose Save to library.</p>'; return; }
   box.innerHTML = unitLib.map(x => {
     const u = x.unit, L = layerById(u.layer), [a, b] = x.units ? selBounds(x.units) : unitSpan(u);
     return `<div class="librow" data-id="${esc2(x.id)}"><div><input type="text" maxlength="80" value="${esc2(x.name)}" aria-label="Name"><small>${x.units ? 'Group of ' + x.units.length : KindName(u.kind) + ' · ' + (L ? L.name : esc2(u.layer))} · ${(b - a).toFixed(2)} s${x.saved ? ' · saved ' + x.saved.slice(0, 10) : ''}</small></div>
@@ -7241,7 +7241,7 @@ resize();
   const esc = t => String(t).replace(/[<>&"]/g, '');
   const renderLaneList = () => {
     const s = LL && LL.sel();
-    if (!s) { laneList.innerHTML = '<div class="segnote">Select a object first.</div>'; return; }
+    if (!s) { laneList.innerHTML = '<div class="segnote">Select an object first.</div>'; return; }
     const on = LL.stackOn();
     laneList.innerHTML = LL.rows(s).map(r => `<div class="lrow${r.cur ? ' cur' : ''}">
       <button class="lpick" data-lane="${r.m}" title="Edit this lane"><span class="ldot${r.drawn ? ' d' : ''}">${r.drawn ? '●' : '○'}</span>${esc(r.name)}</button>
@@ -7288,7 +7288,7 @@ resize();
 </script>
 
 <script>
-/* Standalone build v78-20261110-0820-ecccdc: keep the app on the iPad so it opens with no internet. */
+/* Standalone build v79-20261110-0821-fbfbb6: keep the app on the iPad so it opens with no internet. */
 if ('serviceWorker' in navigator) window.addEventListener('load', () => {
   // an update downloads in the background; when it takes over, say so and offer a reload (the open sketch is kept on the iPad)
   const had = !!navigator.serviceWorker.controller;
