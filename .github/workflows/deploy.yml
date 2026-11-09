@@ -1,0 +1,37 @@
+name: Build and deploy the app
+# Builds the installable iPad app from the newest ipad/lh-spectral-palette-sketchpad_vNN.html and publishes it to
+# https://l-sial.github.io/spectral-score/ . Runs on every push to main that touches the app, or by hand (Run workflow).
+on:
+  push:
+    branches: [main]
+    paths: ['ipad/**', 'standalone/**', '.github/workflows/**']
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pillow
+      - run: python3 standalone/build.py
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: standalone/site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.d.outputs.page_url }}
+    steps:
+      - id: d
+        uses: actions/deploy-pages@v4

@@ -1,2 +1,4 @@
 ._*
 .DS_Store
+standalone/site/
+__pycache__/
