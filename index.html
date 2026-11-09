@@ -528,7 +528,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
     <label>Name <input id="mrName" type="text" autocomplete="off" style="width: 14em" aria-label="Name"></label>
     <span class="selrow"><button class="btn primary" id="mrOk">Done</button><button class="btn warn" id="mrDel">Delete</button><button class="btn" id="mrCancel">Cancel</button></span></div>
   <div class="askbar" id="askBar" hidden><span id="askText"></span><span class="selrow" id="askBtns"></span></div>
-  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v82</span></div>
+  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v83</span></div>
 </div>
 
 <div class="laypop" id="layerDots" role="menu" aria-label="Layer to draw on" hidden></div>
@@ -646,6 +646,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
           <dt>⌥⌘C ⌥⌘V</dt><dd>copy, paste just the envelope</dd>
           <dt>⌫</dt><dd>delete the selected point, or the selected sound object</dd>
           <dt>⇧-click · drag a box</dt><dd>select several sound objects: ⇧-click adds or removes one; in Select (V), or with ⌘ held, drag a box over empty score. ⌘A selects all.</dd>
+          <dt>K · ⇧K</dt><dd>move / copy the selected sound objects to another layer, at the same time and pitch, with all their envelopes</dd>
           <dt>⌘G · ⇧⌘G</dt><dd>group the selected sound objects / ungroup. A group selects, moves, copies, duplicates, stretches and transposes as one (panel › Reshape), and saves to the object library as one entry.</dd>
           <dt>⌘Z ⇧⌘Z</dt><dd>undo, redo</dd>
           <dt>← →  ↑ ↓</dt><dd>move the sound object in time (0.1 s) or pitch (semitone); ⇧ for 1 s / octave</dd>
@@ -2894,14 +2895,14 @@ function multiHead() {
   return `<section class="multi"><h2>${list.length} objects selected${grouped ? ' · grouped' : ''}</h2>
     <p class="note">${mmss(a)}–${mmss(b)} · drag any of them to move all · ⇧-click adds or removes · the settings below are for the one picked last.</p>
     <div class="selrow" style="margin:6px 0"><button class="btn primary" id="mGroup" ${grouped ? 'disabled' : ''}>Group (⌘G)</button><button class="btn" id="mUngroup" ${list.some(u => u.group) ? '' : 'disabled'}>Ungroup (⇧⌘G)</button></div>
-    <div class="selrow" style="margin:6px 0"><button class="btn" id="mDup">Duplicate</button><button class="btn" id="mCopy">Copy</button><button class="btn" id="mLib">Save to library</button><button class="btn warn" id="mDel">Delete</button></div>
+    <div class="selrow" style="margin:6px 0"><button class="btn" id="mDup">Duplicate</button><button class="btn" id="mCopy">Copy</button><button class="btn" id="mMoveL">Move to layer…</button><button class="btn" id="mCopyL">Copy to layer…</button><button class="btn" id="mLib">Save to library</button><button class="btn warn" id="mDel">Delete</button></div>
     <h2>Reshape</h2>
     <div class="selrow" style="margin:6px 0"><span class="note">Time</span><button class="btn" data-st="0.5">×½</button><button class="btn" data-st="0.9">×0.9</button><button class="btn" data-st="1.1">×1.1</button><button class="btn" data-st="2">×2</button></div>
     <div class="selrow" style="margin:6px 0 12px"><span class="note">Pitch</span><button class="btn" data-tr="-12">−oct</button><button class="btn" data-tr="-1">−1 st</button><button class="btn" data-tr="1">+1 st</button><button class="btn" data-tr="12">+oct</button></div></section>`;
 }
 function wireMultiHead() {
   const on = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', fn); };
-  on('mGroup', groupSel); on('mUngroup', ungroupSel); on('mDup', duplicateSel); on('mCopy', copySel); on('mDel', () => deleteSel('Deleted')); on('mLib', saveSelToLib);
+  on('mGroup', groupSel); on('mUngroup', ungroupSel); on('mDup', duplicateSel); on('mCopy', copySel); on('mDel', () => deleteSel('Deleted')); on('mLib', saveSelToLib); on('mMoveL', () => toLayerSel(false)); on('mCopyL', () => toLayerSel(true));
   document.querySelectorAll('[data-st]').forEach(b => b.addEventListener('click', () => stretchSel(+b.dataset.st)));
   document.querySelectorAll('[data-tr]').forEach(b => b.addEventListener('click', () => transposeSel(+b.dataset.tr)));
 }
@@ -4145,7 +4146,7 @@ function renderInspector() {
          <button class="btn warn" id="delSel">Delete</button>
        </div>
        <div class="selrow" style="margin-bottom:10px">
-         <button class="btn" id="dupSel">Duplicate</button>${sel.kind !== 'splash' ? '<button class="btn" id="splitSel" title="Split: then click where to cut (or point and press /)">Split ✂</button>' : ''}<button class="btn" id="copySel">Copy</button>${clip ? '<button class="btn" id="pasteBtn">Paste</button>' : ''}
+         <button class="btn" id="dupSel">Duplicate</button><button class="btn" id="moveLay" title="Move to another layer, same time and pitch (K)">Move to layer…</button><button class="btn" id="copyLay" title="Copy to another layer, same time and pitch (⇧K)">Copy to layer…</button>${sel.kind !== 'splash' ? '<button class="btn" id="splitSel" title="Split: then click where to cut (or point and press /)">Split ✂</button>' : ''}<button class="btn" id="copySel">Copy</button>${clip ? '<button class="btn" id="pasteBtn">Paste</button>' : ''}
        </div>
        <div class="selrow" style="margin-bottom:10px">
          <button class="btn" id="libSaveSel">Save to library</button><button class="btn" id="libOpenBtn">Library… (Y)</button>
@@ -4183,6 +4184,7 @@ function renderInspector() {
       <div class="keys">
         <kbd>⌘C ⌘X ⌘V</kbd><span>copy, cut, paste at the last place you touched</span>
         <kbd>⌘D</kbd><span>duplicate</span>
+        <kbd>K · ⇧K</kbd><span>move / copy to another layer, same time and pitch</span>
         <kbd>/</kbd><span>split the selected sound object at the pointer</span>
         <kbd>⌥⌘C ⌥⌘V</kbd><span>copy, paste just the envelope</span>
         <kbd>⌫ in the lane</kbd><span>delete the selected envelope point</span>
@@ -4297,6 +4299,7 @@ function renderInspector() {
   const del = document.getElementById('delSel');
   if (del) del.addEventListener('click', () => deleteSel('Deleted'));
   const dup = document.getElementById('dupSel'); if (dup) dup.addEventListener('click', duplicateSel);
+  { const mv = document.getElementById('moveLay'), cp = document.getElementById('copyLay'); if (mv) mv.addEventListener('click', () => toLayerSel(false)); if (cp) cp.addEventListener('click', () => toLayerSel(true)); }
   { const sp = document.getElementById('splitSel'); if (sp) sp.addEventListener('click', armSplit); }
   const lsv = document.getElementById('libSaveSel'); if (lsv) lsv.addEventListener('click', saveSelToLib);
   wireMultiHead();
@@ -5598,6 +5601,23 @@ function copySel() {
   const list = selSet(); if (!list.length) return;
   clip = JSON.parse(JSON.stringify(list)); renderInspector(); status(`Copied ${selWord(list)}.`);
 }
+// v83: move or copy the selected objects to another layer, at exactly the same time and pitch, with everything they
+// carry (envelopes, LFOs, modulation, pan, spread, notes, groups). The new layer's sound plays them from then on.
+function toLayerSel(copy) {
+  const list = selSet(); if (!list.length) { status('Select an object first, then ' + (copy ? 'Copy' : 'Move') + ' to layer (' + (copy ? '⇧K' : 'K') + ').'); return; }
+  const from = new Set(list.map(u => u.layer)), targets = LAYERS.filter(L => !(from.size === 1 && from.has(L.id)));
+  if (!targets.length) { status('There is no other layer. Add one in Settings › Score › Layers.'); return; }
+  const go = L => {
+    pushUndo();
+    let out = list;
+    if (copy) { out = cloneList(list); for (const c of out) c.layer = L.id; state.strokes.push(...out); }
+    else for (const u of list) u.layer = L.id;
+    const hidden = !state.visible[L.id] || layerMode(L.id) !== 'full';
+    setSelection(out, copy ? out[list.indexOf(selUnit())] || out[0] : selUnit()); changed(true); syncVisible();
+    status(`${copy ? 'Copied' : 'Moved'} ${selWord(list)} to ${L.name}, same time and pitch.` + (hidden ? ` ${L.name} is hidden or faded at the moment.` : '') + (copy ? ' The copy is selected.' : ''));
+  };
+  ask(`${copy ? 'Copy' : 'Move'} ${selWord(list)} to which layer?`, targets.map(L => [L.name, () => go(L), 'primary']).concat([['Cancel', null]]));
+}
 function duplicateSel() {
   const list = selSet(); if (!list.length) return;
   pushUndo(); const [a, b] = selBounds(list), cs = cloneList(list), dt = Math.min(b - a + 0.5, Math.max(0, state.length - b));
@@ -5698,6 +5718,7 @@ document.addEventListener('keydown', e => {
   if (k === 'y') { document.getElementById('libBox').hidden ? openLib() : closeLib(); return; }
   if (k === 'n') { const u = state.strokes.find(x => x.id === state.selected); if (u) openNote({ unit: u }); else status('Select an object first, or use the ✎ tool’s Note to pin a note anywhere.'); return; }
   if (k === 's' || k === 'm') { toggleMove(); return; }
+  if (k === 'k') { e.preventDefault(); toLayerSel(e.shiftKey); return; }
   const tools = { o: 'chord', b: 'band', i: 'splash', k: 'block', p: 'pulse', u: 'line', w: 'arc', c: 'cloud', v: 'select', e: 'erase', h: 'shape', a: 'annotate' };
   if (tools[k]) { setTool(tools[k]); return; }
   if (has && k.startsWith('arrow')) {
@@ -7432,7 +7453,7 @@ resize();
 </script>
 
 <script>
-/* Standalone build v82-20261110-0858-234783: keep the app on the iPad so it opens with no internet. */
+/* Standalone build v83-20261110-0901-1cc385: keep the app on the iPad so it opens with no internet. */
 if ('serviceWorker' in navigator) window.addEventListener('load', () => {
   // an update downloads in the background; when it takes over, say so and offer a reload (the open sketch is kept on the iPad)
   const had = !!navigator.serviceWorker.controller;
