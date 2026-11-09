@@ -502,7 +502,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
         <div class="selrow"><button class="btn" id="tapMkGo" title="Tap a structural rhythm with P; the first tap is TP0 at the play point, then TP1, TP2… Play first to tap along with the score.">Tap markers… (⇧T)</button></div>
         <div class="selrow"><button class="btn" id="silGo" title="Insert a gap at the play point; everything later moves right. ⇧I = at the pointer">Insert silence… (⇧I)</button></div>
         <label class="ctl">Sound <select id="wave"><option value="sine">Sine</option><option value="organ">Organ</option><option value="presets">Sine + Sound Lab presets</option></select></label>
-        <label class="ctl" title="How much the iPad plays at once. Light is smoothest; Rich keeps more voices and the stereo detune on more of them.">Playback detail <select id="playDetail"><option value="light">Light (smoothest)</option><option value="normal">Normal</option><option value="rich">Rich (fullest)</option></select></label>
+        <label class="ctl" title="How much the iPad plays at once. Light is smoothest; Rich keeps more voices and the stereo detune on more of them.">Playback detail <select id="playDetail"><option value="light">Light (smoothest)</option><option value="normal">Normal</option><option value="rich">Rich (full sound, as before v72)</option></select></label>
         <label class="ctl" title="Headphones (AirPods) hear the sound later than the screen; the play head waits this long.">Play head delay <select id="phDelay"><option value="auto">Auto</option><option value="0">0 ms</option><option value="100">100 ms</option><option value="150">150 ms</option><option value="200">200 ms</option><option value="250">250 ms</option><option value="300">300 ms</option><option value="400">400 ms</option></select></label>
         <p class="note" id="phNote"></p>
         <p class="note" id="presetNote" hidden></p>
@@ -526,7 +526,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
     <label>Name <input id="mrName" type="text" autocomplete="off" style="width: 14em" aria-label="Name"></label>
     <span class="selrow"><button class="btn primary" id="mrOk">Done</button><button class="btn warn" id="mrDel">Delete</button><button class="btn" id="mrCancel">Cancel</button></span></div>
   <div class="askbar" id="askBar" hidden><span id="askText"></span><span class="selrow" id="askBtns"></span></div>
-  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v72</span></div>
+  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v73</span></div>
 </div>
 
 <div class="laypop" id="layerDots" role="menu" aria-label="Layer to draw on" hidden></div>
@@ -4360,7 +4360,7 @@ function rebuildAudio() {
 const wakeAudio = () => { if (ac && ac.state !== 'running' && ac.state !== 'closed' && document.visibilityState === 'visible') ac.resume().catch(() => {}); };
 document.addEventListener('visibilitychange', wakeAudio); window.addEventListener('pageshow', wakeAudio); window.addEventListener('focus', wakeAudio);
 // v72: how much the iPad may play at once (cost units ~ oscillators) and the play-head delay for headphones
-const PLAY_DETAIL = { light: { budget: 170, voices: 70 }, normal: { budget: 300, voices: 120 }, rich: { budget: 480, voices: 200 } };
+const PLAY_DETAIL = { light: { budget: 200, voices: 80, rich: 6, halo: 12 }, normal: { budget: 420, voices: 160, rich: 28, halo: 56 }, rich: { budget: 1200, voices: 260, rich: 1e9, halo: 1e9 } };   // v73: Rich = every voice built in full, as before v72
 let playDetail = 'normal', phDelay = 'auto';
 try { playDetail = localStorage.getItem('lhPlayDetail') || 'normal'; phDelay = localStorage.getItem('lhPhDelay') || 'auto'; } catch (e) { }
 if (!PLAY_DETAIL[playDetail]) playDetail = 'normal';
@@ -4876,10 +4876,9 @@ const ORGAN_ENV = {        // linear attack, decay to sustain and release with t
 };
 // v72: the iPad can't run every voice at full weight. The loudest voices sounding together keep the stereo-detuned
 // right channel and the halo; quieter ones are built mono (panned like the rest) and drop a halo under −40 dB.
-const PIPE_RICH = 14, PIPE_HALO = 28;
 const pipeRich = (P, i, organ) => ctlMod(P, 'stereo_detune') || ctlMod(P, 'celeste_cents') ||
-  ((organ ? Math.pow(2, (P.celeste_cents || 0) / 1200) !== 1 : false) || P.stereo_detune > 0) && (i == null || i < PIPE_RICH);
-const pipeHalo = (P, i) => ctlMod(P, 'halo_db') || (Math.pow(10, P.halo_db / 20) > 0.0005 && P.halo_db > -40 && (i == null || i < PIPE_HALO));
+  ((organ ? Math.pow(2, (P.celeste_cents || 0) / 1200) !== 1 : false) || P.stereo_detune > 0) && (i == null || i < PLAY_DETAIL[playDetail].rich);
+const pipeHalo = (P, i) => ctlMod(P, 'halo_db') || (Math.pow(10, P.halo_db / 20) > 0.0005 && P.halo_db > -40 && (i == null || i < PLAY_DETAIL[playDetail].halo));
 function pipeCost(P, i, organ) {
   const ranks = organ ? [P.stop16, P.stop4, P.stop3, P.stop2, P.stop1].filter(x => x > 0).length : 0;
   const side = 2 + (ctlMod(P, 'feedback') ? 4 : 0) + (pipeHalo(P, i) ? 2 : 0) + ranks;
@@ -7257,7 +7256,7 @@ resize();
 </script>
 
 <script>
-/* Standalone build v72-20261109-1744-9e63cb: keep the app on the iPad so it opens with no internet. */
+/* Standalone build v73-20261109-1750-6fd93a: keep the app on the iPad so it opens with no internet. */
 if ('serviceWorker' in navigator) window.addEventListener('load', () => {
   // an update downloads in the background; when it takes over, say so and offer a reload (the open sketch is kept on the iPad)
   const had = !!navigator.serviceWorker.controller;
