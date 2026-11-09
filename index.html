@@ -528,7 +528,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
     <label>Name <input id="mrName" type="text" autocomplete="off" style="width: 14em" aria-label="Name"></label>
     <span class="selrow"><button class="btn primary" id="mrOk">Done</button><button class="btn warn" id="mrDel">Delete</button><button class="btn" id="mrCancel">Cancel</button></span></div>
   <div class="askbar" id="askBar" hidden><span id="askText"></span><span class="selrow" id="askBtns"></span></div>
-  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v84</span></div>
+  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v85</span></div>
 </div>
 
 <div class="laypop" id="layerDots" role="menu" aria-label="Layer to draw on" hidden></div>
@@ -4153,8 +4153,12 @@ function renderInspector() {
        ${sel.note ? `<div class="notepreview">${sel.note.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</div>` : ''}
        <div class="selrow" style="margin:6px 0 12px"><button class="btn" id="noteSel">${sel.note ? 'Edit note' : 'Add note'}</button></div>
        ${(sel.kind === 'pulse' || sel.kind === 'line' || sel.kind === 'cloud' || arcSel) ? '' : `<h2>Shape · ${sel.shape ? 'shaped (notes glide)' : 'block'}</h2>
-       <div class="selrow pair" style="margin-bottom:8px"><button class="btn" data-preset="converge">Converge at end</button><button class="btn" data-preset="fan">Fan out</button></div>
-       <div class="selrow pair" style="margin-bottom:12px"><button class="btn" data-preset="emerge">Emerge from point</button><button class="btn" data-preset="reset">Block</button></div>`}`
+       <div class="selrow" style="margin-bottom:12px">
+         <button class="btn" data-preset="converge">Converge at end</button>
+         <button class="btn" data-preset="emerge">Emerge from point</button>
+         <button class="btn" data-preset="fan">Fan out</button>
+         <button class="btn" data-preset="reset">Block</button>
+       </div>`}`
     : `<h2>${arcMode ? 'Arc' : KindName(kind)} brush · next ${kind === 'band' ? 'stroke' : 'one'}</h2><div class="selrow" style="margin-bottom:10px">${clip ? '<button class="btn" id="pasteBtn">Paste</button>' : ''}<button class="btn" id="libOpenBtn">Object library… (Y)</button></div>`;
   const nBands = state.strokes.filter(s => s.kind === 'band').length, nBlk = state.strokes.filter(s => s.kind === 'block').length, nPul = state.strokes.filter(s => s.kind === 'pulse').length, nLin = state.strokes.filter(s => s.kind === 'line').length, nCld = state.strokes.filter(s => s.kind === 'cloud').length, nSpl = state.strokes.length - nBands - nBlk - nPul - nLin - nCld;
   if (sel && sel.id !== lastTabSel) setSideTab('unit');
@@ -7447,7 +7451,7 @@ resize();
 </script>
 
 <script>
-/* Standalone build v84-20261110-0908-c6bd86: keep the app on the iPad so it opens with no internet. */
+/* Standalone build v85-20261110-0910-40a30f: keep the app on the iPad so it opens with no internet. */
 if ('serviceWorker' in navigator) window.addEventListener('load', () => {
   // an update downloads in the background; when it takes over, say so and offer a reload (the open sketch is kept on the iPad)
   const had = !!navigator.serviceWorker.controller;
