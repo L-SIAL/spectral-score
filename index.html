@@ -526,7 +526,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
     <label>Name <input id="mrName" type="text" autocomplete="off" style="width: 14em" aria-label="Name"></label>
     <span class="selrow"><button class="btn primary" id="mrOk">Done</button><button class="btn warn" id="mrDel">Delete</button><button class="btn" id="mrCancel">Cancel</button></span></div>
   <div class="askbar" id="askBar" hidden><span id="askText"></span><span class="selrow" id="askBtns"></span></div>
-  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v73</span></div>
+  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v74</span></div>
 </div>
 
 <div class="laypop" id="layerDots" role="menu" aria-label="Layer to draw on" hidden></div>
@@ -5351,7 +5351,9 @@ playBtn.addEventListener('click', () => {
   if (!pick.list.length) { status('Nothing to play from here.'); return; }
   const bus = ac.createGain(); bus.gain.value = voiceGain(pick.peak / 3); bus.connect(master);
   const startAt = ac.currentTime + 0.12 - (state.playFrom || 0);   // the score's time 0, so Play begins at the start marker
-  playing = { start: startAt, bus, oscs: [], queue: pick.list, qi: 0, feedT: 0 };
+  // v74: play on past the end of the score until the last release tail has finished (up to 10 s)
+  const tailEnd = Math.min(state.length + 10, Math.max(state.length, ...pick.list.map(v => v.t0 + v.dur)));
+  playing = { start: startAt, bus, oscs: [], queue: pick.list, qi: 0, feedT: 0, end: tailEnd };
   // v72: build the sound a few seconds ahead of the play head instead of the whole score at once
   const LOOK = 4;
   const feed = () => {
@@ -5382,8 +5384,8 @@ playBtn.addEventListener('click', () => {
       status('The iPad had stopped the sound, so it has been restarted. Press Play again.', true);
       return;
     }
-    if (pos > state.length) { stopPlay(); return; }
-    playhead = Math.max(0, pos); requestDraw(); requestAnimationFrame(tick);
+    if (pos > (playing.end || state.length)) { stopPlay(); return; }
+    playhead = clamp(pos, 0, state.length); requestDraw(); requestAnimationFrame(tick);   // v74: the head waits at the end while tails ring
   };
   tick();
 });
@@ -7256,7 +7258,7 @@ resize();
 </script>
 
 <script>
-/* Standalone build v73-20261109-1750-6fd93a: keep the app on the iPad so it opens with no internet. */
+/* Standalone build v74-20261109-1756-44da78: keep the app on the iPad so it opens with no internet. */
 if ('serviceWorker' in navigator) window.addEventListener('load', () => {
   // an update downloads in the background; when it takes over, say so and offer a reload (the open sketch is kept on the iPad)
   const had = !!navigator.serviceWorker.controller;
