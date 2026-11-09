@@ -502,6 +502,9 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
         <div class="selrow"><button class="btn" id="tapMkGo" title="Tap a structural rhythm with P; the first tap is TP0 at the play point, then TP1, TP2… Play first to tap along with the score.">Tap markers… (⇧T)</button></div>
         <div class="selrow"><button class="btn" id="silGo" title="Insert a gap at the play point; everything later moves right. ⇧I = at the pointer">Insert silence… (⇧I)</button></div>
         <label class="ctl">Sound <select id="wave"><option value="sine">Sine</option><option value="organ">Organ</option><option value="presets">Sine + Sound Lab presets</option></select></label>
+        <label class="ctl" title="How much the iPad plays at once. Light is smoothest; Rich keeps more voices and the stereo detune on more of them.">Playback detail <select id="playDetail"><option value="light">Light (smoothest)</option><option value="normal">Normal</option><option value="rich">Rich (fullest)</option></select></label>
+        <label class="ctl" title="Headphones (AirPods) hear the sound later than the screen; the play head waits this long.">Play head delay <select id="phDelay"><option value="auto">Auto</option><option value="0">0 ms</option><option value="100">100 ms</option><option value="150">150 ms</option><option value="200">200 ms</option><option value="250">250 ms</option><option value="300">300 ms</option><option value="400">400 ms</option></select></label>
+        <p class="note" id="phNote"></p>
         <p class="note" id="presetNote" hidden></p>
         <label class="tog"><input type="checkbox" id="hear" checked> Hear while drawing</label>
         <label class="tog"><input type="checkbox" id="showAnn" checked> Show notes and annotations</label>
@@ -523,7 +526,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
     <label>Name <input id="mrName" type="text" autocomplete="off" style="width: 14em" aria-label="Name"></label>
     <span class="selrow"><button class="btn primary" id="mrOk">Done</button><button class="btn warn" id="mrDel">Delete</button><button class="btn" id="mrCancel">Cancel</button></span></div>
   <div class="askbar" id="askBar" hidden><span id="askText"></span><span class="selrow" id="askBtns"></span></div>
-  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v71</span></div>
+  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v72</span></div>
 </div>
 
 <div class="laypop" id="layerDots" role="menu" aria-label="Layer to draw on" hidden></div>
@@ -4016,6 +4019,15 @@ function tapFinish() {
   status(`Tapped ${tp.times.length} pulses over ${dur.toFixed(2)} s. Stretch the unit to compress or expand the rhythm; ▶ Unit to hear it.`);
 }
 Object.assign(window.__lh, { unitVoices: (u, k) => unitVoices(u, k), spaceHome: (sp, vs) => spaceHome(sp, vs), setLaneMode: m => setLaneMode(m), renderInspector: () => renderInspector() });   // v65 test hooks
+Object.assign(window.__lh, { selectVoices: (v, f) => selectVoices(v, f), voiceCost: (x, i) => voiceCost(x, i), strokes: () => state.strokes, presets: () => GEN_PRESETS, setSound: (layer, id) => { state.wave = 'presets'; state.layerSound[layer] = id; }, layers: () => LAYERS.map(l => l.id), ac: () => ac, playing: () => playing, setDetail: d => { playDetail = d; } });   // v72 test hooks
+window.__lh.renderTest = async (voices, secs, pre) => {   // v72 test: offline render cost (render time / audio time)
+  const keep = { ac, master, organWave }; const oc = new OfflineAudioContext(2, Math.round(44100 * secs), 44100);
+  ac = oc; master = oc.createGain(); master.connect(oc.destination); organWave = null; fbWaves.clear(); pulseWaves.clear();
+  try { schedule(voices, 0.05, master, pre); } finally { }
+  const t0 = performance.now(); await oc.startRendering(); const ms = performance.now() - t0;
+  ac = keep.ac; master = keep.master; organWave = keep.organWave; fbWaves.clear(); pulseWaves.clear();
+  return { renderMs: Math.round(ms), audioMs: secs * 1000, load: +(ms / (secs * 1000)).toFixed(3) };
+};
 // ---- v39: Settings split into Unit | Score tabs
 var lastTabSel = null;
 state.sideTab = 'unit';
@@ -4332,10 +4344,38 @@ function ensureAudio() {
     const comp = ac.createDynamicsCompressor(); comp.threshold.value = -18; comp.ratio.value = 4;
     master = ac.createGain(); master.gain.value = 0.8; master.connect(comp); comp.connect(ac.destination);
     organWave = ac.createPeriodicWave(new Float32Array([0, 0, 0, 0, 0, 0, 0, 0]), new Float32Array([0, 1, 0.6, 0.32, 0.2, 0.1, 0.07, 0.04]));
+    // v72: iPadOS can leave the context 'interrupted' (a route change, a call, AirPods); ask it back whenever it stops
+    ac.onstatechange = () => { if (ac && ac.state !== 'running' && ac.state !== 'closed' && document.visibilityState === 'visible') ac.resume().catch(() => {}); };
   }
-  if (ac.state === 'suspended') ac.resume();
+  if (ac.state !== 'running') { try { const p = ac.resume(); if (p && p.catch) p.catch(() => {}); } catch (e) { } }
   return true;
 }
+// v72: a context that won't run again is replaced (its periodic waves go with it; buffers carry over)
+function rebuildAudio() {
+  const old = ac; ac = null; master = null; organWave = null; pool = null;
+  fbWaves.clear(); pulseWaves.clear();
+  try { if (old) old.close(); } catch (e) { }
+  return ensureAudio();
+}
+const wakeAudio = () => { if (ac && ac.state !== 'running' && ac.state !== 'closed' && document.visibilityState === 'visible') ac.resume().catch(() => {}); };
+document.addEventListener('visibilitychange', wakeAudio); window.addEventListener('pageshow', wakeAudio); window.addEventListener('focus', wakeAudio);
+// v72: how much the iPad may play at once (cost units ~ oscillators) and the play-head delay for headphones
+const PLAY_DETAIL = { light: { budget: 170, voices: 70 }, normal: { budget: 300, voices: 120 }, rich: { budget: 480, voices: 200 } };
+let playDetail = 'normal', phDelay = 'auto';
+try { playDetail = localStorage.getItem('lhPlayDetail') || 'normal'; phDelay = localStorage.getItem('lhPhDelay') || 'auto'; } catch (e) { }
+if (!PLAY_DETAIL[playDetail]) playDetail = 'normal';
+const reportedLatency = () => ac ? Math.max(0, (ac.outputLatency || 0) || (ac.baseLatency || 0)) : 0;
+const soundDelay = () => phDelay === 'auto' ? reportedLatency() : (+phDelay || 0) / 1000;
+// v72: playback detail and play-head delay
+(() => {
+  const pd = document.getElementById('playDetail'), ph = document.getElementById('phDelay'), note = document.getElementById('phNote');
+  pd.value = playDetail; ph.value = phDelay;
+  const show = () => { note.textContent = phDelay === 'auto' ? (ac ? `Auto: the iPad reports ${Math.round(reportedLatency() * 1000)} ms. If the sound still trails the play head, pick a value.` : 'Auto uses the delay the iPad reports once sound has started.') : ''; };
+  pd.addEventListener('change', () => { playDetail = pd.value; try { localStorage.setItem('lhPlayDetail', playDetail); } catch (e) { } status(`Playback detail: ${pd.options[pd.selectedIndex].text}. Applies from the next Play.`); });
+  ph.addEventListener('change', () => { phDelay = ph.value; try { localStorage.setItem('lhPhDelay', phDelay); } catch (e) { } show(); });
+  document.getElementById('play').addEventListener('click', () => setTimeout(show, 600));
+  show();
+})();
 function makeOsc(f) {
   const o = ac.createOscillator();
   if (state.wave === 'organ') o.setPeriodicWave(organWave); else o.type = 'sine';
@@ -4834,6 +4874,18 @@ const ORGAN_ENV = {        // linear attack, decay to sustain and release with t
   relLen: P => Math.min(30, 6.91 * Math.max(P.release_ms, 1) / 4000),
   holdLen: P => Math.min(60, Math.max(P.attack_ms, 1) / 1000 + 7 * Math.max(P.decay_ms, 1) / 4000),
 };
+// v72: the iPad can't run every voice at full weight. The loudest voices sounding together keep the stereo-detuned
+// right channel and the halo; quieter ones are built mono (panned like the rest) and drop a halo under −40 dB.
+const PIPE_RICH = 14, PIPE_HALO = 28;
+const pipeRich = (P, i, organ) => ctlMod(P, 'stereo_detune') || ctlMod(P, 'celeste_cents') ||
+  ((organ ? Math.pow(2, (P.celeste_cents || 0) / 1200) !== 1 : false) || P.stereo_detune > 0) && (i == null || i < PIPE_RICH);
+const pipeHalo = (P, i) => ctlMod(P, 'halo_db') || (Math.pow(10, P.halo_db / 20) > 0.0005 && P.halo_db > -40 && (i == null || i < PIPE_HALO));
+function pipeCost(P, i, organ) {
+  const ranks = organ ? [P.stop16, P.stop4, P.stop3, P.stop2, P.stop1].filter(x => x > 0).length : 0;
+  const side = 2 + (ctlMod(P, 'feedback') ? 4 : 0) + (pipeHalo(P, i) ? 2 : 0) + ranks;
+  const sides = pipeRich(P, i, organ) ? 2 : 1;
+  return sides * (side + 1.5) + (organ && P.trem_depth > 0 ? 1 : 0);
+}
 // an FM pipe (Organ) or hollow FM note (FM Chord): carrier + feedback modulator, a quiet 1:3.5 halo,
 // optional additive stops, celeste on the right, tremulant, index wobble and chiff
 function pipeSource(P, f0, i, organ) {
@@ -4857,7 +4909,7 @@ function pipeSource(P, f0, i, organ) {
     const dev = ac.createGain(); dev.gain.value = f0 * mm; fp.push([dev.gain, mm]);
     const ig = ac.createGain(); ig.gain.value = Math.max(0, P.fm_index); idxGains.push(ig); sd.ig = ig;
     mod.connect(dev); dev.connect(ig); ig.connect(car.frequency); car.connect(sum);
-    if (halo > 0.0005 || ctlMod(P, 'halo_db')) {
+    if (pipeHalo(P, i)) {
       const hc = osc(cm), hmod = osc(hm, 'sine'), hd = ac.createGain(), hg = ac.createGain(); sd.cars.push(hc);
       hd.gain.value = 1.2 * f0 * hm; fp.push([hd.gain, 1.2 * hm]); hmod.connect(hd); hd.connect(hc.frequency);
       hg.gain.value = halo; hc.connect(hg); hg.connect(sum); hgs.push(hg);
@@ -4865,7 +4917,7 @@ function pipeSource(P, f0, i, organ) {
     for (const [m, g, k] of ranks) { const o = osc(cm * m, 'sine'), gg = ac.createGain(); sd.cars.push(o); gg.gain.value = g; o.connect(gg); gg.connect(sum); rgs.push([gg, k]); }
     return sum;
   };
-  const sL = side(1, mr, 3.5, false), sR = (cel !== 1 || P.stereo_detune > 0 || ctlMod(P, 'stereo_detune') || ctlMod(P, 'celeste_cents')) ? side(cel, mr + P.stereo_detune, 3.507, true) : null;
+  const sL = side(1, mr, 3.5, false), sR = pipeRich(P, i, organ) ? side(cel, mr + P.stereo_detune, 3.507, true) : null;
   // level: K_FM·√2 (organ only), pan √½, K_OUT, output gain; the iPad level is the plug-in's × 2√2 (ENG_K); 0.8 = a mid velocity
   const lvl = 0.12 * Math.SQRT2 * Math.SQRT1_2 * 0.355 * Math.pow(10, P.output_gain_db / 20) * rkNorm * ENG_K * 0.8;
   const trem = ac.createGain(); trem.gain.value = 1;
@@ -4971,8 +5023,8 @@ const ENG_V62 = {
           if (mv.master_amp) { modCurve(outL.gain, n, j => mv.master_amp[j] * 0.8 * ENG_K * (1 - np) * 2 * Math.SQRT1_2, t0, dur); modCurve(outR.gain, n, j => mv.master_amp[j] * 0.8 * ENG_K * np * 2 * Math.SQRT1_2, t0, dur); }
         } };
     } },
-  LH_Organ: Object.assign({ cost: P => 3 + [P.stop16, P.stop4, P.stop3, P.stop2, P.stop1].filter(x => x > 0).length, source: (P, f0, i) => pipeSource(P, f0, i, true) }, ORGAN_ENV),
-  LH_FM_Chord: Object.assign({ cost: () => 4, source: (P, f0, i) => pipeSource(P, f0, i, false) }, ORGAN_ENV),
+  LH_Organ: Object.assign({ cost: (P, i) => pipeCost(P, i, true), source: (P, f0, i) => pipeSource(P, f0, i, true) }, ORGAN_ENV),
+  LH_FM_Chord: Object.assign({ cost: (P, i) => pipeCost(P, i, false), source: (P, f0, i) => pipeSource(P, f0, i, false) }, ORGAN_ENV),
 };
 Object.assign(ENGINES, ENG_V62);
 // any preset's envelope on a score voice: Breath keeps its own; the others use the plug-in's attack/release, with the tail after the note
@@ -5137,12 +5189,44 @@ function unitVoices(s, key) {
   }
   return v;
 }
-function schedule(voices, startAt, bus) {
-  voices.sort((a, b) => b.energy - a.energy);
+// v72: what one voice costs the iPad (about one unit per oscillator or filter)
+function voiceCost(x, i) {
+  const pr = x.preset; if (!pr) return 1;
+  if (pr.engine === 'LH_Breath') return 3;
+  const E = ENGINES[pr.engine]; if (!E) return 1;
+  const P = fullParams(pr); P.__mod = new Set((x.mods || []).map(m => m.k));
+  return E.cost(P, i);
+}
+// v72: choose the voices the iPad plays: loudest first, but limited by how many sound AT THE SAME TIME (not across
+// the whole score), so long scores keep their later units. Each voice gets its rank among the louder voices it
+// overlaps (_i), which decides how richly it is built.
+function selectVoices(voices, from) {
+  const L = PLAY_DETAIL[playDetail], acc = [];
+  const cand = voices.filter(v => v.t0 + v.dur > from - 0.01).sort((a, b) => b.energy - a.energy);
+  for (const v of cand) {
+    const a = v.t0, b = v.t0 + v.dur, ov = acc.filter(x => x.a < b && x.b > a);
+    const c = voiceCost(v, ov.length);
+    if (ov.length) {
+      const ev = [];
+      for (const x of ov) { ev.push([Math.max(x.a, a), x.c, 1], [Math.min(x.b, b), -x.c, -1]); }
+      ev.sort((p, q) => p[0] - q[0] || p[1] - q[1]);
+      let cc = 0, nn = 0, mc = 0, mn = 0; for (const e of ev) { cc += e[1]; nn += e[2]; if (cc > mc) mc = cc; if (nn > mn) mn = nn; }
+      if (mc + c > L.budget || mn + 1 > L.voices) continue;
+    }
+    v._i = ov.length; acc.push({ v, a, b, c });
+  }
+  const ev = []; for (const x of acc) ev.push([x.a, 1], [x.b, -1]); ev.sort((p, q) => p[0] - q[0] || p[1] - q[1]);
+  let n = 0, peak = 0; for (const e of ev) { n += e[1]; if (n > peak) peak = n; }
+  return { list: acc.map(x => x.v).sort((p, q) => p.t0 - q.t0), peak: Math.max(1, peak), dropped: cand.length - acc.length };
+}
+function schedule(voices, startAt, bus, pre) {
   // heavier engines (one oscillator per partial or mode) play fewer voices, loudest first
-  const cost = x => { const pr = x.preset, E = pr && ENGINES[pr.engine]; return E ? E.cost(fullParams(pr)) : 1; };
-  let budget = 900, nMax = 0; while (nMax < Math.min(260, voices.length) && (budget -= cost(voices[nMax])) >= 0) nMax++;
-  const list = voices.slice(0, Math.max(1, nMax)), oscs = [];
+  const list = pre ? voices : (() => {
+    voices.sort((a, b) => b.energy - a.energy);
+    const L = PLAY_DETAIL[playDetail]; let budget = L.budget, nMax = 0;
+    while (nMax < Math.min(L.voices, voices.length) && (budget -= voiceCost(voices[nMax], nMax)) >= 0) nMax++;
+    return voices.slice(0, Math.max(1, nMax));
+  })(), oscs = [];
   const now = ac.currentTime + 0.03;
   list.forEach((v, i) => {
     let t = startAt + v.t0, amp = v.amp, fcv = v.fcurve, dur = v.dur, pcv = v.pan, mods = v.mods;
@@ -5153,7 +5237,8 @@ function schedule(voices, startAt, bus) {
       if (mods) mods = mods.map(m => ({ k: m.k, c: m.c.subarray(skip) }));
       dur = v.dur - skip * dtv; t += skip * dtv;
     }
-    const src = buildSource(v, fcv ? fcv[0] : v.f, i, mods), gn = ac.createGain();
+    const vi = v._i != null ? v._i : i;
+    const src = buildSource(v, fcv ? fcv[0] : v.f, vi, mods), gn = ac.createGain();
     gn.gain.value = 0;
     const curve = new Float32Array(amp.length + 2); curve.set(amp, 1);   // starts and ends at 0, so no clicks
     let pn;
@@ -5164,7 +5249,7 @@ function schedule(voices, startAt, bus) {
       const q = 0.5 + src.pan / 2; mL.gain.value = Math.sqrt(1 - q); mR.gain.value = Math.sqrt(q);
       gn.connect(mL); gR.connect(mR); mL.connect(merge, 0, 0); mR.connect(merge, 0, 1); merge.connect(bus);
       pn = { lr: [mL.gain, mR.gain], gR };
-    } else { pn = panNode(((i % 5) - 2) * 0.18); src.out.connect(gn); gn.connect(pn); pn.connect(bus); }
+    } else { pn = panNode(((vi % 5) - 2) * 0.18); src.out.connect(gn); gn.connect(pn); pn.connect(bus); }
     const safeT = Math.max(t, ac.currentTime + 0.02);
     try {
       gn.gain.setValueCurveAtTime(curve, safeT, dur);
@@ -5181,7 +5266,7 @@ function schedule(voices, startAt, bus) {
         pn.lr[0].setValueCurveAtTime(cl, safeT, dur); pn.lr[1].setValueCurveAtTime(cr, safeT, dur);
       }
       if (pcv && pn.pan) {        // the unit's pan envelope, with a little of the usual voice spread
-        const spread = v.spat ? 0 : ((i % 5) - 2) * 0.06, pc = new Float32Array(pcv.length + 2);
+        const spread = v.spat ? 0 : ((vi % 5) - 2) * 0.06, pc = new Float32Array(pcv.length + 2);
         for (let k = 0; k < pcv.length; k++) pc[k + 1] = clamp(pcv[k] + spread, -1, 1);
         pc[0] = pc[1]; pc[pc.length - 1] = pc[pc.length - 2];
         pn.pan.setValueAtTime(pc[0], ac.currentTime); pn.pan.setValueCurveAtTime(pc, safeT, dur);
@@ -5248,7 +5333,7 @@ function playSelUnit() {
 unitBtn.addEventListener('click', playSelUnit);
 function stopPlay() {
   if (!playing) return;
-  const p = playing; playing = null; playhead = null;
+  const p = playing; playing = null; playhead = null; if (p.feedT) clearTimeout(p.feedT);
   p.bus.gain.setTargetAtTime(0, ac.currentTime, 0.05);
   setTimeout(() => { p.oscs.forEach(o => { try { o.stop(); } catch (e) { } }); p.bus.disconnect(); }, 300);
   playBtn.textContent = '▶ Play'; requestDraw();
@@ -5263,24 +5348,40 @@ playBtn.addEventListener('click', () => {
     voices.push(...unitVoices(s));
   }
   if (!voices.length) { status('Nothing to play yet. Draw a band or stamp an impulse first.'); return; }
-  const bus = ac.createGain(); bus.gain.value = voiceGain(voices.length / 3); bus.connect(master);
+  const pick = selectVoices(voices, state.playFrom || 0);
+  if (!pick.list.length) { status('Nothing to play from here.'); return; }
+  const bus = ac.createGain(); bus.gain.value = voiceGain(pick.peak / 3); bus.connect(master);
   const startAt = ac.currentTime + 0.12 - (state.playFrom || 0);   // the score's time 0, so Play begins at the start marker
-  playing = { start: startAt, bus, oscs: schedule(voices, startAt, bus) };
+  playing = { start: startAt, bus, oscs: [], queue: pick.list, qi: 0, feedT: 0 };
+  // v72: build the sound a few seconds ahead of the play head instead of the whole score at once
+  const LOOK = 4;
+  const feed = () => {
+    const p = playing; if (!p || p.bus !== bus) return;
+    const until = (ac.currentTime - p.start) + LOOK, batch = [];
+    while (p.qi < p.queue.length && p.queue[p.qi].t0 < until) batch.push(p.queue[p.qi++]);
+    if (batch.length) { const o = schedule(batch, p.start, bus, true); for (const x of o) p.oscs.push(x); }
+    if (p.qi < p.queue.length) p.feedT = setTimeout(feed, 700);
+  };
+  feed();
   playBtn.textContent = '■ Stop';
-  status(`Playing from ${mmss(state.playFrom || 0)}. Sine/organ preview only; bandwidth and engine colour are heard on the Mac.`);
+  status(`Playing from ${mmss(state.playFrom || 0)}.` + (pick.dropped > 0 ? ` ${pick.dropped} quieter voice${pick.dropped === 1 ? '' : 's'} left out so the iPad keeps up (Score › Playback detail).` : ''));
   playing.wall = performance.now(); playing.from = state.playFrom || 0; playing.lastAc = ac.currentTime;
   if (ac.state !== 'running') ac.resume().catch(() => {});
   const tick = () => {
     if (!playing) return;
     // follow the audio clock while it runs; if the iPad has paused audio, follow the wall clock so the playhead never freezes
-    const acPos = ac.currentTime - playing.start;
-    const wallPos = playing.from + (performance.now() - playing.wall) / 1000 - 0.12;
+    const lat = soundDelay();   // v72: the sound reaches the ears this much later (AirPods: 0.15–0.3 s)
+    const acPos = ac.currentTime - playing.start - lat;
+    const wallPos = playing.from + (performance.now() - playing.wall) / 1000 - 0.12 - lat;
     const running = ac.state === 'running' && ac.currentTime > playing.lastAc - 1e-6 && (ac.currentTime !== playing.lastAc || performance.now() - playing.wall < 300);
     const pos = running ? acPos : wallPos;
     if (ac.currentTime !== playing.lastAc) playing.lastAc = ac.currentTime;
-    if (!running && !playing.warned && performance.now() - playing.wall > 800) {
+    if (!running && !playing.warned && performance.now() - playing.wall > 1200) {
       playing.warned = true;
-      status('The iPad has paused sound (check the silent switch, or another app using audio). The playhead keeps time without it.', true);
+      // v72: the audio clock isn't moving: restart the sound engine instead of leaving the app silent
+      stopPlay(); rebuildAudio();
+      status('The iPad had stopped the sound, so it has been restarted. Press Play again.', true);
+      return;
     }
     if (pos > state.length) { stopPlay(); return; }
     playhead = Math.max(0, pos); requestDraw(); requestAnimationFrame(tick);
@@ -7156,7 +7257,7 @@ resize();
 </script>
 
 <script>
-/* Standalone build v71-20261108-2137-679c8b: keep the app on the iPad so it opens with no internet. */
+/* Standalone build v72-20261109-1744-9e63cb: keep the app on the iPad so it opens with no internet. */
 if ('serviceWorker' in navigator) window.addEventListener('load', () => {
   // an update downloads in the background; when it takes over, say so and offer a reload (the open sketch is kept on the iPad)
   const had = !!navigator.serviceWorker.controller;
