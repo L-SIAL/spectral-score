@@ -528,7 +528,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
     <label>Name <input id="mrName" type="text" autocomplete="off" style="width: 14em" aria-label="Name"></label>
     <span class="selrow"><button class="btn primary" id="mrOk">Done</button><button class="btn warn" id="mrDel">Delete</button><button class="btn" id="mrCancel">Cancel</button></span></div>
   <div class="askbar" id="askBar" hidden><span id="askText"></span><span class="selrow" id="askBtns"></span></div>
-  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v85</span></div>
+  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v86</span></div>
 </div>
 
 <div class="laypop" id="layerDots" role="menu" aria-label="Layer to draw on" hidden></div>
@@ -4157,6 +4157,7 @@ function renderInspector() {
          <button class="btn" data-preset="converge">Converge at end</button>
          <button class="btn" data-preset="emerge">Emerge from point</button>
          <button class="btn" data-preset="fan">Fan out</button>
+         <button class="btn" data-preset="fanin">Fan in</button>
          <button class="btn" data-preset="reset">Block</button>
        </div>`}`
     : `<h2>${arcMode ? 'Arc' : KindName(kind)} brush · next ${kind === 'band' ? 'stroke' : 'one'}</h2><div class="selrow" style="margin-bottom:10px">${clip ? '<button class="btn" id="pasteBtn">Paste</button>' : ''}<button class="btn" id="libOpenBtn">Object library… (Y)</button></div>`;
@@ -4331,6 +4332,7 @@ function renderInspector() {
       const sh = ensureShape(u), [lo, hi] = sh.base_hz, g = +Math.sqrt(lo * hi).toFixed(2);
       if (kind === 'converge') { sh.left_hz = [lo, hi]; sh.right_hz = [g, g]; }
       if (kind === 'emerge') { sh.left_hz = [g, g]; sh.right_hz = [lo, hi]; }
+      if (kind === 'fanin') { const k = Math.pow(2, 0.75); sh.left_hz = [+clamp(lo / k, FMIN, FMAX).toFixed(2), +clamp(hi * k, FMIN, FMAX).toFixed(2)]; sh.right_hz = [lo, hi]; }   // v86: the mirror of Fan out
       if (kind === 'fan') { const k = Math.pow(2, 0.75); sh.left_hz = [lo, hi]; sh.right_hz = [+clamp(lo / k, FMIN, FMAX).toFixed(2), +clamp(hi * k, FMIN, FMAX).toFixed(2)]; }
       delete sh.lo_pts; delete sh.hi_pts; shapePts(sh);
     }
@@ -7451,7 +7453,7 @@ resize();
 </script>
 
 <script>
-/* Standalone build v85-20261110-0910-40a30f: keep the app on the iPad so it opens with no internet. */
+/* Standalone build v86-20261110-0912-4dd419: keep the app on the iPad so it opens with no internet. */
 if ('serviceWorker' in navigator) window.addEventListener('load', () => {
   // an update downloads in the background; when it takes over, say so and offer a reload (the open sketch is kept on the iPad)
   const had = !!navigator.serviceWorker.controller;
