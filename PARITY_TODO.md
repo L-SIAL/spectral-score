@@ -13,3 +13,5 @@ Add an item here for every iPad change; it is cleared when the user is back at t
 - ⏮ Return to 0:00 that also scrolls the view to the start (agreed, not built on either side yet).
 - [ ] zoom centres on the play head (agreed, not built on either side yet).
 - v88 Help / keys window title: "Help – Spectral Score".
+- LH Audio Editor (iPad, separate app, 11 Nov): on the Mac, REAPER itself does this (items, markers, render).
+  Possible later bridge: export the iPad edit (markers + excerpt times) as a REAPER project or marker list.

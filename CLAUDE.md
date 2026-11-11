@@ -14,6 +14,12 @@ until they are back at the Mac (the Mac copy is on their LH_PORTABLE drive and i
 - `HANDOFF.md` = change history and design notes (newest at the end). `PARITY_TODO.md` = what the Mac
   Score Tool (Lua, in REAPER, not in this repo) still needs to match.
 
+## Second app: LH Audio Editor (since 11 Nov 2026)
+- `editor/lh-audio-editor_vNN.html`, a full page; published at https://l-sial.github.io/spectral-score/editor/ by the same
+  build. For editing singing-lesson recordings: open from Files, markers with notes, lift sections onto an Excerpts track,
+  share them as WAV to Apple Notes. Same rules: `git mv` to the next number, change `<span class="ver">vNN</span>`,
+  `// vNN:` comments, HANDOFF.md section. Test hooks: `window.__lha`.
+
 ## How to make a change
 1. `git mv` the html to the next number (v87 → v88) so there is only ever ONE html in `ipad/`.
 2. Change the label `<span class="ver">vNN</span>` to the new number.

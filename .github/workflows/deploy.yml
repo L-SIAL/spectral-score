@@ -4,7 +4,7 @@ name: Build and deploy the app
 on:
   push:
     branches: [main]
-    paths: ['ipad/**', 'standalone/**', '.github/workflows/**']
+    paths: ['ipad/**', 'editor/**', 'standalone/**', '.github/workflows/**']
   workflow_dispatch:
 permissions:
   contents: read
