@@ -491,6 +491,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
         <label class="ctl">Sound <select id="wave"><option value="sine">Sine</option><option value="organ">Organ</option><option value="presets">Sine + Sound Lab presets</option></select></label>
         <label class="ctl" title="How much the iPad plays at once. Light is smoothest; Rich keeps more voices and the stereo detune on more of them.">Playback detail <select id="playDetail"><option value="light">Light (smoothest)</option><option value="normal">Normal</option><option value="rich">Rich (full sound, as before v72)</option></select></label>
         <label class="ctl" title="Headphones (AirPods) hear the sound later than the screen; the play head waits this long.">Play head delay <select id="phDelay"><option value="auto">Auto</option><option value="0">0 ms</option><option value="100">100 ms</option><option value="150">150 ms</option><option value="200">200 ms</option><option value="250">250 ms</option><option value="300">300 ms</option><option value="400">400 ms</option></select></label>
+        <label class="ctl" title="Binaural places every voice around your head (front, sides, behind) for headphones, following its Space lane. Stereo is for speakers.">Listening <select id="spatMode"><option value="stereo">Stereo (speakers)</option><option value="binaural">Binaural 3D (headphones)</option></select></label>
         <p class="note" id="phNote"></p>
         <p class="note" id="presetNote" hidden></p>
         <label class="tog"><input type="checkbox" id="hear" checked> Hear while drawing</label>
@@ -513,7 +514,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
     <label>Name <input id="mrName" type="text" autocomplete="off" style="width: 14em" aria-label="Name"></label>
     <span class="selrow"><button class="btn primary" id="mrOk">Done</button><button class="btn warn" id="mrDel">Delete</button><button class="btn" id="mrCancel">Cancel</button></span></div>
   <div class="askbar" id="askBar" hidden><span id="askText"></span><span class="selrow" id="askBtns"></span></div>
-  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v89</span></div>
+  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v90</span></div>
 </div>
 
 <div class="laypop" id="layerDots" role="menu" aria-label="Layer to draw on" hidden></div>
@@ -617,6 +618,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
           <dt>Time ruler</dt><dd>tap or drag it to move the start marker. <kbd>,</kbd> <kbd>.</kbd> nudge it, Return goes to 0:00.</dd>
           <dt>Duration</dt><dd>in Settings. Changing it stretches or contracts the whole score (untick "Stretch" to keep material where it is).</dd>
           <dt>L</dt><dd>loop (solo) the selected sound object, or just the chosen note.</dd>
+          <dt>Listening</dt><dd>Settings › Score. <b>Stereo</b> for speakers (left–right). <b>Binaural 3D</b> for headphones: every voice is placed around your head, in front, at the sides and behind, and follows its Space lane, so each partial, grain or pulse can move on its own. Turn off Spatialize Stereo / Spatial Audio in Control Centre while using it. Binaural plays about half as many voices at once.</dd>
           <dt>Silent switch</dt><dd>turn it off on the iPad to hear the preview.</dd>
         </dl></section>
       <section><h4>Keyboard</h4>
@@ -4015,6 +4017,18 @@ window.__lh.renderTest = async (voices, secs, pre) => {   // v72 test: offline r
   ac = keep.ac; master = keep.master; organWave = keep.organWave; fbWaves.clear(); pulseWaves.clear();
   return { renderMs: Math.round(ms), audioMs: secs * 1000, load: +(ms / (secs * 1000)).toFixed(3) };
 };
+window.__lh.spatTest = async (mode, azAt, secs) => {   // v90 test: render one sine voice along an azimuth path; returns L/R rms per 0.1 s
+  const keep = { ac, master, mode: spatMode }, sr = 44100; secs = secs || 2; spatMode = mode;
+  const oc = new OfflineAudioContext(2, sr * (secs + 1), sr); ac = oc;
+  try {
+    const n = 200, x = { t0: 0, dur: secs, f: 440, amp: new Float32Array(n).fill(0.5), energy: 1 };
+    x.az = new Float32Array(n).map((_, k) => azAt(k / (n - 1))); x.pan = x.az.map(d => Math.sin(d * Math.PI / 180)); x.spat = true;
+    schedule([x], 0.05, oc.destination, true);
+    const b = await oc.startRendering(), L = b.getChannelData(0), R = b.getChannelData(1), out = [];
+    for (let t = 0.1; t < secs; t += 0.1) { let l = 0, r = 0; const s = Math.round(t * sr), e = Math.round((t + 0.1) * sr); for (let k = s; k < e; k++) { l += L[k] * L[k]; r += R[k] * R[k]; } out.push([+Math.sqrt(l / (e - s)).toFixed(4), +Math.sqrt(r / (e - s)).toFixed(4)]); }
+    return out;
+  } finally { ac = keep.ac; master = keep.master; spatMode = keep.mode; }
+};
 // ---- v39: Settings split into Unit | Score tabs
 var lastTabSel = null;
 state.sideTab = 'unit';
@@ -4353,6 +4367,10 @@ const PLAY_DETAIL = { light: { budget: 200, voices: 80, rich: 6, halo: 12 }, nor
 let playDetail = 'normal', phDelay = 'auto';
 try { playDetail = localStorage.getItem('lhPlayDetail') || 'normal'; phDelay = localStorage.getItem('lhPhDelay') || 'auto'; } catch (e) { }
 if (!PLAY_DETAIL[playDetail]) playDetail = 'normal';
+// v90: Listening = stereo (left-right, as the LH synths' stereo law) or binaural (an HRTF panner per voice, its full azimuth)
+let spatMode = 'stereo';
+try { if (localStorage.getItem('lhSpatMode') === 'binaural') spatMode = 'binaural'; } catch (e) { }
+const playLim = () => { const L = PLAY_DETAIL[playDetail]; return spatMode === 'binaural' ? { ...L, voices: Math.round(L.voices * 0.5) } : L; };
 const reportedLatency = () => ac ? Math.max(0, (ac.outputLatency || 0) || (ac.baseLatency || 0)) : 0;
 const soundDelay = () => phDelay === 'auto' ? reportedLatency() : (+phDelay || 0) / 1000;
 // v72: playback detail and play-head delay
@@ -4362,6 +4380,8 @@ const soundDelay = () => phDelay === 'auto' ? reportedLatency() : (+phDelay || 0
   const show = () => { note.textContent = phDelay === 'auto' ? (ac ? `Auto: the iPad reports ${Math.round(reportedLatency() * 1000)} ms. If the sound still trails the play head, pick a value.` : 'Auto uses the delay the iPad reports once sound has started.') : ''; };
   pd.addEventListener('change', () => { playDetail = pd.value; try { localStorage.setItem('lhPlayDetail', playDetail); } catch (e) { } status(`Playback detail: ${pd.options[pd.selectedIndex].text}. Applies from the next Play.`); });
   ph.addEventListener('change', () => { phDelay = ph.value; try { localStorage.setItem('lhPhDelay', phDelay); } catch (e) { } show(); });
+  const sm = document.getElementById('spatMode'); sm.value = spatMode;
+  sm.addEventListener('change', () => { spatMode = sm.value === 'binaural' ? 'binaural' : 'stereo'; try { localStorage.setItem('lhSpatMode', spatMode); } catch (e) { } status(spatMode === 'binaural' ? 'Listening: Binaural 3D, for headphones. Turn off Spatialize Stereo / Spatial Audio in Control Centre. Applies from the next Play.' : 'Listening: Stereo. Applies from the next Play.'); });
   document.getElementById('play').addEventListener('click', () => setTimeout(show, 600));
   show();
 })();
@@ -4575,7 +4595,7 @@ function breathEnvelope(x, P0) {
   const last = x.amp[n - 1];
   for (let k = 0; k < relN; k++) { lv = Math.max(0, lv - rel); amp[n + k] = last * g(lv); }
   const ext = (arr) => { if (!arr) return arr; const o = new Float32Array(n + relN); o.set(arr); o.fill(arr[n - 1], n); return o; };
-  x.amp = amp; x.fcurve = ext(x.fcurve); x.pan = ext(x.pan); if (x.mods) for (const m of x.mods) m.c = ext(m.c); x.dur = x.dur + relN * dt;
+  x.amp = amp; x.fcurve = ext(x.fcurve); x.pan = ext(x.pan); x.az = ext(x.az); if (x.mods) for (const m of x.mods) m.c = ext(m.c); x.dur = x.dur + relN * dt;
 }
 // one voice's source: { out (stereo), starts, fp: [[AudioParam, multiple of the pitch]], pan (optional placement) }
 let altSide = 1;
@@ -4648,6 +4668,7 @@ function wander(n, dt, amount, rate, centred) {
   for (let j = 0; j < n; j++) { if (Math.random() < rate * dt) tgt = pick(); cur += (tgt - cur) * k; out[j] = cur; }
   return out;
 }
+const BIN_K = 0.785;   // v90: binaural level, matched to the stereo panner's centre
 function panNode(v) { if (!ac.createStereoPanner) return ac.createGain(); const p = ac.createStereoPanner(); p.pan.value = v; return p; }
 
 // ---- v31 engines: Additive, FM, Modal (ported from the LH_*.jsfx code)
@@ -5026,7 +5047,7 @@ function engineEnvelope(x, pr) {
   const g0 = E.hold((n - 1) * dt, P), last = x.amp[n - 1];
   for (let k = 0; k < relN; k++) amp[n + k] = last * E.rel(g0, (k + 1) * dt, P);
   const ext = arr => { if (!arr) return arr; const o = new Float32Array(n + relN); o.set(arr); o.fill(arr[n - 1], n); return o; };
-  x.hold = x.dur; x.amp = amp; x.fcurve = ext(x.fcurve); x.pan = ext(x.pan); if (x.mods) for (const m of x.mods) m.c = ext(m.c); x.dur = x.dur + relN * dt;
+  x.hold = x.dur; x.amp = amp; x.fcurve = ext(x.fcurve); x.pan = ext(x.pan); x.az = ext(x.az); if (x.mods) for (const m of x.mods) m.c = ext(m.c); x.dur = x.dur + relN * dt;
 }
 
 function liveSound(s, pt) {
@@ -5178,7 +5199,8 @@ function unitVoices(s, key) {
   return v;
 }
 // v72: what one voice costs the iPad (about one unit per oscillator or filter)
-function voiceCost(x, i) {
+function voiceCost(x, i) { return voiceCost0(x, i) + (spatMode === 'binaural' ? 2 : 0); }   // v90: an HRTF panner costs about two oscillators
+function voiceCost0(x, i) {
   const pr = x.preset; if (!pr) return 1;
   if (pr.engine === 'LH_Breath') return 3;
   const E = ENGINES[pr.engine]; if (!E) return 1;
@@ -5189,7 +5211,7 @@ function voiceCost(x, i) {
 // the whole score), so long scores keep their later units. Each voice gets its rank among the louder voices it
 // overlaps (_i), which decides how richly it is built.
 function selectVoices(voices, from) {
-  const L = PLAY_DETAIL[playDetail], acc = [];
+  const L = playLim(), acc = [];
   const cand = voices.filter(v => v.t0 + v.dur > from - 0.01).sort((a, b) => b.energy - a.energy);
   for (const v of cand) {
     const a = v.t0, b = v.t0 + v.dur, ov = acc.filter(x => x.a < b && x.b > a);
@@ -5211,17 +5233,17 @@ function schedule(voices, startAt, bus, pre) {
   // heavier engines (one oscillator per partial or mode) play fewer voices, loudest first
   const list = pre ? voices : (() => {
     voices.sort((a, b) => b.energy - a.energy);
-    const L = PLAY_DETAIL[playDetail]; let budget = L.budget, nMax = 0;
+    const L = playLim(); let budget = L.budget, nMax = 0;
     while (nMax < Math.min(L.voices, voices.length) && (budget -= voiceCost(voices[nMax], nMax)) >= 0) nMax++;
     return voices.slice(0, Math.max(1, nMax));
   })(), oscs = [];
   const now = ac.currentTime + 0.03;
   list.forEach((v, i) => {
-    let t = startAt + v.t0, amp = v.amp, fcv = v.fcurve, dur = v.dur, pcv = v.pan, mods = v.mods;
+    let t = startAt + v.t0, amp = v.amp, fcv = v.fcurve, dur = v.dur, pcv = v.pan, azv = v.az, mods = v.mods;
     if (t + dur < now + 0.02) return;
     if (t < now) {                       // started before the play point: join it part-way through
       const dtv = v.dur / v.amp.length, skip = Math.min(v.amp.length - 2, Math.ceil((now - t) / dtv));
-      amp = v.amp.subarray(skip); if (fcv) fcv = fcv.subarray(skip); if (pcv) pcv = pcv.subarray(skip);
+      amp = v.amp.subarray(skip); if (fcv) fcv = fcv.subarray(skip); if (pcv) pcv = pcv.subarray(skip); if (azv) azv = azv.subarray(skip);
       if (mods) mods = mods.map(m => ({ k: m.k, c: m.c.subarray(skip) }));
       dur = v.dur - skip * dtv; t += skip * dtv;
     }
@@ -5230,7 +5252,13 @@ function schedule(voices, startAt, bus, pre) {
     gn.gain.value = 0;
     const curve = new Float32Array(amp.length + 2); curve.set(amp, 1);   // starts and ends at 0, so no clicks
     let pn;
-    if (src.outL) {
+    if (spatMode === 'binaural' && ac.createPanner) {
+      // v90 binaural: one HRTF panner per voice; a stereo source is summed into it (its Note Width becomes the drift below)
+      const P = ac.createPanner(); P.panningModel = 'HRTF'; P.distanceModel = 'inverse'; P.refDistance = 1; P.rolloffFactor = 0;
+      const out = ac.createGain(); out.gain.value = BIN_K; P.connect(out); out.connect(bus);
+      if (src.outL) { const gR = ac.createGain(), sum = ac.createGain(); gR.gain.value = 0; sum.gain.value = 0.5; src.outL.connect(gn); src.outR.connect(gR); gn.connect(sum); gR.connect(sum); sum.connect(P); pn = { gR, hrtf: P }; }
+      else { src.out.connect(gn); gn.connect(P); pn = { hrtf: P }; }
+    } else if (src.outL) {
       // stereo source: amplitude, then the LH plug-ins' pan law per side (so Note Width keeps its decorrelation)
       const gR = ac.createGain(), mL = ac.createGain(), mR = ac.createGain(), merge = ac.createChannelMerger(2);
       gR.gain.value = 0; src.outL.connect(gn); src.outR.connect(gR);
@@ -5244,6 +5272,27 @@ function schedule(voices, startAt, bus, pre) {
       if (pn.gR) pn.gR.gain.setValueCurveAtTime(curve, safeT, dur);
       const nC = Math.max(2, Math.min(4000, Math.ceil(dur * 50))), dtC = dur / (nC - 1);
       if (src.drift && src.detune.length) { const dc = wander(nC, dtC, src.drift.c, src.drift.r, false); for (const d of src.detune) d.setValueCurveAtTime(dc, safeT, dur); }
+      if (pn.hrtf) {   // v90: the voice's path around the head (x right, z behind); without a Space lane its stereo place, in front
+        const P = pn.hrtf, px = new Float32Array(nC), pz = new Float32Array(nC);
+        const pd = src.pdrift ? wander(nC, dtC, src.pdrift.p, src.pdrift.r, true) : null, fixed = src.outL ? src.pan : ((vi % 5) - 2) * 0.18;
+        const plen = pcv ? pcv.length : 0, alen = azv ? azv.length : 0;
+        let moves = false;
+        for (let k = 0; k < nC; k++) {
+          let deg;
+          if (azv) deg = azv[Math.min(alen - 1, Math.round(k / (nC - 1) * (alen - 1)))];
+          else {
+            let p = pcv ? pcv[Math.min(plen - 1, Math.round(k / (nC - 1) * (plen - 1)))] + (src.outL ? src.pan * 0.3 : ((vi % 5) - 2) * 0.06) : fixed;
+            if (pd) p += 2 * pd[k];
+            deg = Math.asin(clamp(p, -1, 1)) * 180 / Math.PI;
+          }
+          const r = deg * Math.PI / 180; px[k] = Math.sin(r); pz[k] = -Math.cos(r);
+          if (k && (px[k] !== px[0] || pz[k] !== pz[0])) moves = true;
+        }
+        if (P.positionX) {
+          P.positionY.value = 0; P.positionX.setValueAtTime(px[0], ac.currentTime); P.positionZ.setValueAtTime(pz[0], ac.currentTime);
+          if (moves) { P.positionX.setValueCurveAtTime(px, safeT, dur); P.positionZ.setValueCurveAtTime(pz, safeT, dur); }
+        } else P.setPosition(px[0], 0, pz[0]);
+      }
       if ((pcv || src.pdrift) && pn.lr) {
         const pd = src.pdrift ? wander(nC, dtC, src.pdrift.p, src.pdrift.r, true) : null;
         const cl = new Float32Array(nC), cr = new Float32Array(nC);
@@ -5802,13 +5851,13 @@ function applySpace(s, v) {
   const pe = s.pan_env && s.pan_env.length > 1 ? s.pan_env : null, se = s.spread_env && s.spread_env.length > 1 ? s.spread_env : null;
   const spr = sp.spread == null ? 1 : sp.spread, rot = sp.rotate || 0;
   v.forEach((x, i) => {
-    const n = x.amp.length, dt = x.dur / Math.max(n - 1, 1), pc = new Float32Array(n), h = home[i];
+    const n = x.amp.length, dt = x.dur / Math.max(n - 1, 1), pc = new Float32Array(n), az = new Float32Array(n), h = home[i];
     for (let k = 0; k < n; k++) {
       const u = clamp((x.t0 + k * dt - s0) / sl, 0, 1);
       const c = pe ? (clamp(envAt(pe, u), 0, 1) * 2 - 1) * 90 : 0, w = se ? clamp(envAt(se, u), 0, 1) : spr;
-      pc[k] = Math.sin((c + w * h * 90 + 360 * rot * u) * Math.PI / 180);
+      az[k] = c + w * h * 90 + 360 * rot * u; pc[k] = Math.sin(az[k] * Math.PI / 180);
     }
-    x.pan = pc; x.spat = true;
+    x.pan = pc; x.az = az; x.spat = true;   // v90: az = the full azimuth in degrees (0 front, 90 right, 180 behind), for binaural
   });
 }
 // ---- v63: modulation envelopes, up to 3 per unit; each one moves one control of the layer's sound across the unit

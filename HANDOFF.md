@@ -1,7 +1,7 @@
 # LH Spectral Palette: handoff for Mac development and return to iPad
 
 *Prepared 2 November 2026 from the iPad session "LH Sandstorm synth: FM, combs, iPad painter". For Lawrence Harvey.*
-*Start the Mac session in the home folder with Remote Control on, then say: "Read LH_Palette_Handoff/HANDOFF.md and continue."*
+*Start the Mac session in the E42262 folder with Remote Control on, then say: "Read LH_Palette_Handoff/HANDOFF.md and continue."*
 
 ---
 
@@ -303,8 +303,8 @@ Lawrence worked at **Les Ateliers UPIC in Paris in the 1990s**. Concepts to deci
 
 ## 12. How to work from here
 
-1. On the Mac, unzip this package into **home** (it makes one `LH_Palette_Handoff` folder).
-2. In the Claude desktop app: **Settings › Claude Code › Remote Control** → add **home**, or your toolkit folder.
+1. On the Mac, unzip this package into **E42262** (it makes one `LH_Palette_Handoff` folder).
+2. In the Claude desktop app: **Settings › Claude Code › Remote Control** → add **E42262**, or your toolkit folder.
 3. Start Claude Code in that folder and say: *"Read LH_Palette_Handoff/HANDOFF.md, then look at LH_Spectral_Band_MIDI_GUI and LH UPIC MIDI and tell me which route fits (section 6.1) before building."*
 4. Build order suggested in the overview, updated:
    1. Region commit and load back in REAPER
@@ -1061,5 +1061,17 @@ Queue started 8 Nov 2026, after v69. Copy into LH_Palette_Handoff/HANDOFF.md ("N
 ## v87 (10 Nov)
 - ▶ Object / ⇧Space: the play head now moves across the object (and across a multi-selection) while it plays alone (followObjHead; same latency correction as Play). Button text while playing: ■ Object (was ■ Unit).
 
-## v88 (9 Nov)
-- Help window title is now "Help – Spectral Score" (was "How to use the sketchpad"; `#helpTitle` in the help overlay).
+## iPad-only pipeline (10 Nov)
+- The app source now lives in GitHub L-SIAL/spectral-score (public; user chose it): ipad/ (one html), standalone/build.py, CLAUDE.md, HANDOFF.md copy, PARITY_TODO.md, .github/workflows/deploy.yml (build + deploy-pages on push to main).
+- Mac checkout: LH_Palette_Handoff/repo. standalone/publish.py now copies the newest ipad html into repo/ and pushes; if the iPad made a newer version it copies it down to ipad/ (+ *.from-ipad notes) and stops. Old script kept as publish_before_v88.py; the old standalone/site checkout is no longer used.
+- Pages source must be "GitHub Actions" (Settings › Pages), set by the user.
+
+## v88 (10 Nov, made on the iPad via Claude Code + GitHub)
+- Help window title is now "Help – Spectral Score". First iPad round trip: PR #1 merged, workflow deployed. Pages source switched to GitHub Actions by the user; old built copy removed from the repo root.
+
+## v89 (10 Nov)
+- Help: new section "Changing the app from the iPad" (the 9-step round trip). Same steps in the repo README.md.
+
+## v90 (11 Nov)
+- Settings › Score › Listening: Stereo (speakers) | Binaural 3D (headphones); saved as localStorage lhSpatMode. Binaural = one HRTF PannerNode per voice (schedule(): pn.hrtf), position on a unit circle (x = sin az, z = -cos az) automated with setValueCurveAtTime, so each voice follows its full Space azimuth (applySpace now also keeps x.az in degrees, extended through release tails). Voices without a Space lane: asin(stereo pan), in front. Stereo sources (Breath) summed ×0.5 into the panner. Level BIN_K 0.785 = matched to the stereo panner (sine 440 and Breath within 0.5 dB). Binaural voices cost +2 and the voice limit is halved (playLim). Test hook __lh.spatTest(mode, azAt(u), secs).
+- Mac parity: binaural monitoring in REAPER (8-ch synth output → binaural decoder, or an LH binaural output mode); to discuss.

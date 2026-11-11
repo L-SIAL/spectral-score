@@ -13,3 +13,5 @@ Add an item here for every iPad change; it is cleared when the user is back at t
 - ⏮ Return to 0:00 that also scrolls the view to the start (agreed, not built on either side yet).
 - [ ] zoom centres on the play head (agreed, not built on either side yet).
 - v88 Help / keys window title: "Help – Spectral Score".
+- v90 Listening: Stereo / Binaural 3D (headphones). Mac counterpart to decide: hear the per-voice azimuth binaurally in REAPER
+  (an LH synth binaural output mode, or Multichannel 8 → a binaural decoder plug-in).
