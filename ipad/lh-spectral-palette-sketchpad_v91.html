@@ -383,7 +383,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
         <div class="lane-head">
           <span class="lh">Envelope</span>
           <span class="lu" id="laneUnit">No object selected</span>
-          <span class="segbtns" role="group" aria-label="Envelope type"><button class="chip on" id="laneVol" aria-pressed="true" title="Loudness envelope">Loudness</button><button class="chip" id="lanePan" aria-pressed="false" title="Pan: the centre of the object's voices, left to right across the object">Pan</button><button class="chip" id="laneSpread" aria-pressed="false" title="Spread: how far the Spatialisation law spreads the voices, 0 = all at the centre">Spread</button></span>
+          <span class="segbtns" role="group" aria-label="Envelope type"><button class="chip on" id="laneVol" aria-pressed="true" title="Loudness envelope">Loudness</button><button class="chip" id="lanePan" aria-pressed="false" title="Pan: the centre of the object's voices, left to right across the object">Pan</button><button class="chip" id="laneSpread" aria-pressed="false" title="Spread: how far the Spatialisation law spreads the voices, 0 = all at the centre">Spread</button><button class="chip" id="laneRot" aria-pressed="false" title="Rotation: the speed the voices turn around, over time. Top = the Rotation setting, middle = still, bottom = backwards">Rotation</button></span>
           <button class="chip" id="laneStackBtn" aria-pressed="false" title="Show the object's other lanes stacked above the one you are editing; tap one to edit it">Stack</button>
           <select id="envTarget" aria-label="Envelope for"></select>
           <button class="chip" id="loopBtn">▶ Loop object</button>
@@ -496,7 +496,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
         <p class="note" id="presetNote" hidden></p>
         <label class="tog"><input type="checkbox" id="hear" checked> Hear while drawing</label>
         <label class="tog"><input type="checkbox" id="showAnn" checked> Show notes and annotations</label>
-        <label class="tog" title="Small marks on each object for its drawn lanes: L loudness, P pan, S spread, 1–3 modulation. Tap one (Select tool) to edit that lane."><input type="checkbox" id="showMarks" checked> Show lane marks on objects</label>
+        <label class="tog" title="Small marks on each object for its drawn lanes: L loudness, P pan, S spread, R rotation, 1–3 modulation. Tap one (Select tool) to edit that lane."><input type="checkbox" id="showMarks" checked> Show lane marks on objects</label>
         <label class="ctl stack" for="scoreNotes">Score notes
           <textarea id="scoreNotes" rows="5" placeholder="Ideas, intentions, what to try next…"></textarea>
         </label>
@@ -514,7 +514,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
     <label>Name <input id="mrName" type="text" autocomplete="off" style="width: 14em" aria-label="Name"></label>
     <span class="selrow"><button class="btn primary" id="mrOk">Done</button><button class="btn warn" id="mrDel">Delete</button><button class="btn" id="mrCancel">Cancel</button></span></div>
   <div class="askbar" id="askBar" hidden><span id="askText"></span><span class="selrow" id="askBtns"></span></div>
-  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v90</span></div>
+  <div class="statusrow"><span class="curname" id="curName" title="The sketch that is open. Tap to see all sketches on this iPad."></span><div class="status" id="status" role="status"></div><span class="ver">v91</span></div>
 </div>
 
 <div class="laypop" id="layerDots" role="menu" aria-label="Layer to draw on" hidden></div>
@@ -604,6 +604,7 @@ input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; u
           <dt>Shapes</dt><dd>Save shape… stores the envelope; tap a shape to load it.</dd>
           <dt>Whole chord / a note</dt><dd>shape the sound object, or give one note its own envelope.</dd>
           <dt>Loudness · Pan</dt><dd>switch the lane between the loudness envelope and the sound object's pan (top = right, middle = centre, bottom = left). Pan is drawn and edited the same way.</dd>
+          <dt>Spread · Rotation</dt><dd>with a Spatialisation law (Settings › Object). <b>Spread</b>: how far the law spreads the voices. <b>Rotation</b>: how fast the voices turn around over time. Top = the Rotation setting (up to ±64 turns across the sound object), the middle line = still, the bottom = backwards. Draw a rise to speed up, cross the middle to reverse. In Binaural 3D the voices really go round your head.</dd>
           <dt>♪ Sound Lab (3)</dt><dd>in Settings: craft sounds from the REAPER synths (LH Breath so far). Hold the pads to play; moving a control on a REAPER preset makes your own copy. “Use on this layer” puts it in the score (Sound: Sine + Sound Lab presets).</dd>
           <dt>LFO</dt><dd>Shape ▾ › LFO writes an LFO onto the lane you are editing (loudness, pan, spread or a modulation lane) as one envelope, like a REAPER automation item: shape, cycles, depth and baseline. More ▸ has the rest (Hz, phase, skews, tilt, soft edges, presets). Keep as points turns it into ordinary points to edit by hand.</dd>
           <dt>Section</dt><dd>in the LFO row: then drag across the lane to put the LFO on part of the sound object (⇧-drag with a keyboard). Drag the [ ] tabs at the foot of the lane to adjust it.</dd>
@@ -2500,6 +2501,7 @@ function splitEnvs(u, o, k0, k1) {
   if (o.env) u.env = envSlice(o.env, k0, k1);
   if (o.pan_env) u.pan_env = envSlice(o.pan_env, k0, k1);
   if (o.spread_env) u.spread_env = envSlice(o.spread_env, k0, k1);   // v65
+  if (o.rot_env) u.rot_env = envSlice(o.rot_env, k0, k1);   // v91
   if (o.mods) u.mods = o.mods.map(m => Object.assign({}, m, { pts: envSlice(m.pts, k0, k1) }));
   if (o.note_env) { u.note_env = {}; for (const key of Object.keys(o.note_env)) u.note_env[key] = envSlice(o.note_env[key], k0, k1); }
 }
@@ -3402,7 +3404,7 @@ function toJSON() {
     envelope_format: 'env and note_env points are [position 0-1 across the object, loudness 0-1, curve, tension 0-1]; curve shapes the segment to the next point. They stretch with the object. note_env is keyed by partial Hz and overrides env for that note. Loudness is on a 60 dB scale (1 = 0 dB, 0.5 = −30 dB, 0 = −60 dB/off) and maps to CC11/43.',
     mod_format: 'mods (optional, per object, up to 3) = [{ k: control key, s: plug-in slider number, e: engine, l: label, pts }]; pts are [position 0-1 across the object, value 0-1 across the control range (log controls on a log scale), curve, tension] and give the control its value over time (they replace the preset value). Intended for per-channel 14-bit CC pairs on the Mac (slot 1 CC 16/48, slot 2 CC 17/49, slot 3 CC 18/50; slot target = slider number on CC 102/103/104).',
     pan_format: 'pan_env (optional, per object) points are [position 0-1 across the object, pan 0-1 (0 = left, 0.5 = centre, 1 = right), curve, tension]; same curves as env. Absent = centre. Intended for per-channel CC10 on the Mac.',
-    space_format: 'v65 Spatialisation. space (optional, per object) = {law: centre|pitch|pitch_rev|fan|oddeven|zones|golden|entry|random, spread 0-1, rotate (turns across the object), pattern: fixed|pingpong|sweep|walk|random|cycle, step 0-1, seed}. spread_env = [position, spread 0-1, curve, tension]. Each voice gets its own azimuth (centre from pan_env, plus spread x its law position x 90 deg, plus rotation); the Mac writes it as 14-bit CC10/42 on the voice\'s own MIDI channel, CC105 = 1.',
+    space_format: 'v65 Spatialisation. space (optional, per object) = {law: centre|pitch|pitch_rev|fan|oddeven|zones|golden|entry|random, spread 0-1, rotate (turns across the object, -64..64), pattern: fixed|pingpong|sweep|walk|random|cycle, step 0-1, seed}. spread_env = [position, spread 0-1, curve, tension]. v91 rot_env = [position, speed 0-1 (0.5 still, 1 = rotate, 0 = -rotate), curve, tension]; the angle is 360 x rotate x the integral of (2 x speed - 1) over the object (rotate 0 with a lane = 1 turn). Each voice gets its own azimuth (centre from pan_env, plus spread x its law position x 90 deg, plus rotation); the Mac writes it as 14-bit CC10/42 on the voice\'s own MIDI channel, CC105 = 1.',
     envelope_curves: { lin: 'linear (REAPER CC shape 1)', exp: 'slow start, fast end (REAPER CC shape 4, fast end; tension sets steepness)', log: 'fast start, slow end (REAPER CC shape 3, fast start)', s: 'slow start and end (REAPER CC shape 2)', smooth: 'monotone spline through the points (REAPER CC shape 5, bezier, or dense CCs)', hold: 'step (REAPER CC shape 0, square)' },
     shape_library: userShapes,
     outline_format: 'shape (optional) = { base_hz: [lo, hi], left_hz: [lo, hi], right_hz: [lo, hi] }. Each note keeps its relative log position between the lower and upper edge; the edges run straight from the object start (left) to its end (right). Write as 14-bit pitch bend glissandi, one note per channel.',
@@ -4064,16 +4066,16 @@ function addLayer() {
 function spaceBox(u) {
   const sp = u.space, o = (list, cur) => list.map(([k, l]) => `<option value="${k}" ${k === cur ? 'selected' : ''}>${l}</option>`).join('');
   const rng = (id, lab, out, min, max, step, val) => `<div class="prm"><label for="${id}">${lab}<output id="${id}o">${out}</output></label><input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${val}"></div>`;
-  const rf = r => Math.abs(r) < 0.005 ? 'none' : (r > 0 ? '+' : '') + r.toFixed(2) + ' turns';
+  const rf = r => Math.abs(r) < 0.005 ? 'none' : (r > 0 ? '+' : '') + (Math.abs(r) < 10 ? r.toFixed(2) : r.toFixed(1)) + ' turns';
   return `<section><h2>Spatialisation</h2>
     <p class="note">Each voice (a partial, a grain, a pulse) gets its own place and path. On the Mac every voice has its own MIDI channel, so this is written as its own 14-bit azimuth.</p>
     <div class="prm"><label for="spLaw">Spatialisation</label><select id="spLaw" class="selrow"><option value="" ${sp ? '' : 'selected'}>Off${u.pan_env && u.pan_env.length > 1 ? ' (pan lane only)' : ''}</option>${o(SPACE_LAWS, sp && sp.law)}</select></div>
     ${sp ? `${rng('spSpr', u.spread_env ? 'Spread (lane drawn)' : 'Spread', Math.round((sp.spread == null ? 1 : sp.spread) * 100) + '%', 0, 100, 1, Math.round((sp.spread == null ? 1 : sp.spread) * 100))}
-    ${rng('spRot', 'Rotation', rf(sp.rotate || 0), -8, 8, 0.05, sp.rotate || 0)}
+    ${rng('spRot', u.rot_env && u.rot_env.length > 1 ? 'Rotation (lane drawn: top speed)' : 'Rotation', rf(sp.rotate || 0), -100, 100, 0.5, rotToSl(sp.rotate || 0))}
     <div class="prm"><label for="spPat">Events</label><select id="spPat" class="selrow">${o(SPACE_PATS, sp.pattern || 'fixed')}</select></div>
     ${sp.pattern === 'walk' ? rng('spStep', 'Walk step', Math.round((sp.step == null ? 0.3 : sp.step) * 100) + '%', 1, 100, 1, Math.round((sp.step == null ? 0.3 : sp.step) * 100)) : ''}
     <div class="selrow" style="margin:6px 0"><button class="btn" id="spSeed">New space seed</button></div>` : ''}
-    <p class="note">In the lane: <b>Pan</b> moves the centre, <b>Spread</b> the width.</p></section>`;
+    <p class="note">In the lane: <b>Pan</b> moves the centre, <b>Spread</b> the width, <b>Rotation</b> the turning speed over time (top = this Rotation, middle = still, bottom = backwards).</p></section>`;
 }
 function wireSpace(u) {
   const law = document.getElementById('spLaw'); if (!law || !u) return;
@@ -4089,7 +4091,7 @@ function wireSpace(u) {
   if (sd) sd.addEventListener('click', () => { pushUndo(); u.space.seed = newSeed(); changed(true); status('New space seed: a new scatter with the same law.'); });
   for (const [id, set, fmt] of [
     ['spSpr', v => { u.space.spread = v / 100; }, v => Math.round(v) + '%'],
-    ['spRot', v => { u.space.rotate = Math.abs(v) < 0.05 ? 0 : Math.round(v * 100) / 100; }, v => Math.abs(v) < 0.05 ? 'none' : (v > 0 ? '+' : '') + v.toFixed(2) + ' turns'],
+    ['spRot', v => { u.space.rotate = slToRot(v); }, v => { const r = slToRot(v); return Math.abs(r) < 0.005 ? 'none' : (r > 0 ? '+' : '') + (Math.abs(r) < 10 ? r.toFixed(2) : r.toFixed(1)) + ' turns'; }],
     ['spStep', v => { u.space.step = v / 100; }, v => Math.round(v) + '%']]) {
     const r = document.getElementById(id); if (!r) continue;
     let armed = true;
@@ -5805,6 +5807,23 @@ const panMode = () => state.laneMode === 'pan';
 //   s.space = {law, spread 0..1, rotate (turns across the unit), pattern, step, seed}
 //   s.pan_env = the centre, s.spread_env = the law's width over the unit
 const spreadMode = () => state.laneMode === 'spread';
+// v91: Rotation up to ±64 turns across the object; the slider is cubic so small values stay easy to set
+const ROT_MAX = 64;
+const slToRot = x => { const r = Math.sign(x) * ROT_MAX * Math.pow(Math.abs(x) / 100, 3); return Math.abs(r) < 0.01 ? 0 : Math.round(r * 100) / 100; };
+const rotToSl = r => Math.sign(r) * 100 * Math.cbrt(Math.min(Math.abs(r), ROT_MAX) / ROT_MAX);
+// v91: s.rot_env = the turning speed over the object (0.5 = still, 1 = the Rotation setting, 0 = the same backwards).
+// The angle is its integral: a flat lane at the top turns exactly 'rotate' times, as without a lane.
+const rotMode = () => state.laneMode === 'rot';
+const ROT_FLAT = [[0, 1, 'lin', 0.5], [1, 1, 'lin', 0.5]];
+const rotEnv = s => (s && s.rot_env && s.rot_env.length > 1) ? s.rot_env : ROT_FLAT;
+function rotTurnsFn(s) {
+  const sp = s.space || {}, re = s.rot_env && s.rot_env.length > 1 ? s.rot_env : null;
+  const R = sp.rotate || (re ? 1 : 0);
+  if (!re) return u => R * u;
+  const N = 512, cum = new Float32Array(N + 1); let prev = 2 * clamp(envAt(re, 0), 0, 1) - 1;
+  for (let i = 1; i <= N; i++) { const cur = 2 * clamp(envAt(re, i / N), 0, 1) - 1; cum[i] = cum[i - 1] + (prev + cur) / 2 / N; prev = cur; }
+  return u => { const x = clamp(u, 0, 1) * N, i = Math.min(N - 1, Math.floor(x)); return R * (cum[i] + (cum[i + 1] - cum[i]) * (x - i)); };
+}
 const SPACE_LAWS = [['centre', 'Centre'], ['pitch', 'By pitch (low left)'], ['pitch_rev', 'By pitch (low right)'], ['fan', 'Spectral fan'], ['oddeven', 'Odd / even'], ['zones', 'Register zones'], ['golden', 'Golden scatter'], ['entry', 'Entry order'], ['random', 'Seeded random']];
 const SPACE_PATS = [['fixed', 'Fixed'], ['pingpong', 'Ping-pong'], ['sweep', 'Sweep'], ['walk', 'Walk'], ['random', 'Random'], ['cycle', 'Cycle L C R C']];
 const M31 = 2147483647;
@@ -5849,13 +5868,13 @@ function applySpace(s, v) {
   const [s0, s1] = unitSpan(s), sl = Math.max(s1 - s0, 0.001), sp = s.space || {};
   const home = spaceHome(sp, v.map(x => ({ f0: x.f, t0: x.t0 })));
   const pe = s.pan_env && s.pan_env.length > 1 ? s.pan_env : null, se = s.spread_env && s.spread_env.length > 1 ? s.spread_env : null;
-  const spr = sp.spread == null ? 1 : sp.spread, rot = sp.rotate || 0;
+  const spr = sp.spread == null ? 1 : sp.spread, turns = rotTurnsFn(s);
   v.forEach((x, i) => {
     const n = x.amp.length, dt = x.dur / Math.max(n - 1, 1), pc = new Float32Array(n), az = new Float32Array(n), h = home[i];
     for (let k = 0; k < n; k++) {
       const u = clamp((x.t0 + k * dt - s0) / sl, 0, 1);
       const c = pe ? (clamp(envAt(pe, u), 0, 1) * 2 - 1) * 90 : 0, w = se ? clamp(envAt(se, u), 0, 1) : spr;
-      az[k] = c + w * h * 90 + 360 * rot * u; pc[k] = Math.sin(az[k] * Math.PI / 180);
+      az[k] = c + w * h * 90 + 360 * turns(u); pc[k] = Math.sin(az[k] * Math.PI / 180);
     }
     x.pan = pc; x.az = az; x.spat = true;   // v90: az = the full azimuth in degrees (0 front, 90 right, 180 behind), for binaural
   });
@@ -5899,7 +5918,7 @@ function activeMods(s, pr) {
   if (!s.mods || !pr) return [];
   return s.mods.map(m => ({ k: m.k, d: modDef(pr.engine, m.k), pts: m.pts })).filter(m => m.d && Array.isArray(m.pts) && m.pts.length > 1);
 }
-const rawValEnv = s => { if (panMode()) return rawPanEnv(s); if (spreadMode()) return (s && s.spread_env && s.spread_env.length > 1) ? s.spread_env : spreadFlatOf(s); const m = modLane(s); return m ? m.pts : PAN_FLAT; };
+const rawValEnv = s => { if (panMode()) return rawPanEnv(s); if (rotMode()) return rotEnv(s); if (spreadMode()) return (s && s.spread_env && s.spread_env.length > 1) ? s.spread_env : spreadFlatOf(s); const m = modLane(s); return m ? m.pts : PAN_FLAT; };
 const rawPanEnv = s => (s.pan_env && s.pan_env.length > 1) ? s.pan_env : PAN_FLAT;
 function targetEnv(s) { if (valMode()) return rawValEnv(s); return state.envTarget === 'unit' ? rawUnitEnv(s) : rawNoteEnv(s, state.envTarget); }
 function heardEnv(s) { if (valMode()) return rawValEnv(s); return state.envTarget === 'unit' ? unitEnv(s) : noteEnv(s, state.envTarget); }
@@ -5909,6 +5928,7 @@ function setLaneMode(m) {
   renderLaneHeader();
   const s = selUnit(), ml = modLane(s), pr = s && layerSoundOf(s), d = ml && pr && modDef(pr.engine, ml.k);
   status(m === 'pan' ? 'Pan: the centre of the object\'s voices. Top is right, the middle line is centre, the bottom is left. Each voice keeps its own place around it (Settings › Spatialisation).'
+    : m === 'rot' ? `Rotation: how fast the voices turn around, over time. Top = ${(() => { const r = s && s.space && s.space.rotate; return r ? (r > 0 ? '+' : '') + r + ' turns across the object' : 'the Rotation setting'; })()}, the middle line = still, the bottom = the same backwards. Needs a Spatialisation law (Settings).`
     : m === 'spread' ? 'Spread: how far the Spatialisation law spreads the voices. Top = the full law, bottom = all at the centre. Set a law in Settings › Spatialisation.'
     : ml ? (d ? `${d.l}: the top of the lane is ${modFmt(d, d.max)}${modUnit(d) ? ' ' + modUnit(d) : ''}, the bottom ${modFmt(d, d.min)}${d.log ? ' (log scale)' : ''}. The envelope sets the control across the object, in place of the preset value.`
       : `This layer's sound has no ${ml.l || ml.k}. The envelope is kept and plays again if you switch back.`)
@@ -5921,6 +5941,7 @@ function paintLaneMode() {
   $('laneVol').classList.toggle('on', m === 'vol'); $('laneVol').setAttribute('aria-pressed', m === 'vol');
   $('lanePan').classList.toggle('on', m === 'pan'); $('lanePan').setAttribute('aria-pressed', m === 'pan');
   $('laneSpread').classList.toggle('on', m === 'spread'); $('laneSpread').setAttribute('aria-pressed', m === 'spread');
+  $('laneRot').classList.toggle('on', m === 'rot'); $('laneRot').setAttribute('aria-pressed', m === 'rot');
 }
 function renderModRow() {
   const s = selUnit(), pr = s ? layerSoundOf(s) : null, defs = pr ? modDefsFor(pr.engine) : [];
@@ -5971,6 +5992,7 @@ $('modDel').addEventListener('click', () => {
 function setTargetEnv(s, pts) {
   if (panMode()) { s.pan_env = pts; return; }
   if (spreadMode()) { s.spread_env = pts; return; }
+  if (rotMode()) { s.rot_env = pts; return; }
   if (modIdx() >= 0) { const m = modLane(s); if (m) m.pts = pts; return; }
   if (state.envTarget === 'unit') s.env = pts;
   else { s.note_env = s.note_env || {}; s.note_env[state.envTarget] = pts; }
@@ -6092,7 +6114,7 @@ function renderShapes() {
       pushUndo(); setLaneLfo(s2, null);
       // v64: Flat on the Pan lane is centre, on a modulation lane the preset's value (the top there is right / the maximum)
       const ml2 = modLane(s2), flatHere = +b.dataset.shape === 0 && valMode();
-      setTargetEnv(s2, flatHere && panMode() ? PAN_FLAT.map(p => p.slice()) : flatHere && spreadMode() ? spreadFlatOf(s2) : flatHere && ml2 ? modFlat(s2, ml2.k) : sh.pts.map(p => p.slice()));
+      setTargetEnv(s2, flatHere && panMode() ? PAN_FLAT.map(p => p.slice()) : flatHere && spreadMode() ? spreadFlatOf(s2) : flatHere && rotMode() ? ROT_FLAT.map(p => p.slice()) : flatHere && ml2 ? modFlat(s2, ml2.k) : sh.pts.map(p => p.slice()));
       // saved shapes bring their LFO (or clear it); built-ins leave the LFO alone
       if (+b.dataset.shape >= SHAPES.length && !valMode()) { if (sh.lfo) s2.lfo = JSON.parse(JSON.stringify(sh.lfo)); else delete s2.lfo; }
       changed(false); renderLaneHeader();
@@ -6110,6 +6132,7 @@ document.getElementById('resetEnv').addEventListener('click', () => {
   pushUndo(); setLaneLfo(s, null);
   if (panMode()) { delete s.pan_env; changed(false); renderLaneHeader(); status('Pan reset to centre.'); return; }
   if (spreadMode()) { delete s.spread_env; changed(false); renderLaneHeader(); status('Spread lane removed: the Spread setting applies again.'); return; }
+  if (rotMode()) { delete s.rot_env; changed(false); renderLaneHeader(); status('Rotation lane removed: the Rotation setting turns at a steady speed again.'); return; }
   if (modIdx() >= 0) { const m = modLane(s); if (m) m.pts = modFlat(s, m.k); changed(false); renderLaneHeader(); status('Flat again, at the preset value.'); return; }
   if (state.envTarget === 'unit') { delete s.env; delete s.lfo; delete s.env_mod; } else if (s.note_env) delete s.note_env[state.envTarget];
   changed(false); renderLaneHeader();
@@ -6396,22 +6419,23 @@ lane.addEventListener('pointercancel', endLane);
 
 // ---- v66: stacked lanes. The lane being edited stays below; the unit's other lanes are compact rows
 // above it, in a fixed order, scrolled when there are more than three. Tap a row to edit that lane.
-const LANE_ORDER = ['vol', 'pan', 'spread', 'mod0', 'mod1', 'mod2'];
+const LANE_ORDER = ['vol', 'pan', 'spread', 'rot', 'mod0', 'mod1', 'mod2'];
 let stackOn = false, stackTall = false, stackShow = {};
 try { const o = JSON.parse(localStorage.getItem('lhLaneStack') || '{}'); stackOn = !!o.on; stackTall = !!o.tall; stackShow = o.show || {}; } catch (e) { }
 function saveStack() { try { localStorage.setItem('lhLaneStack', JSON.stringify({ on: stackOn, tall: stackTall, show: stackShow })); } catch (e) { } }
-const laneExists = (s, m) => m === 'vol' || m === 'pan' || m === 'spread' || !!(s && s.mods && s.mods[+m[3]]);
+const laneExists = (s, m) => m === 'vol' || m === 'pan' || m === 'spread' || m === 'rot' || !!(s && s.mods && s.mods[+m[3]]);
 function laneDrawn(s, m) {
   if (!s) return false;
   if (m === 'vol') return volDrawn(s);
   if (m === 'pan') return !!(s.pan_env && s.pan_env.length > 1);
   if (m === 'spread') return !!((s.spread_env && s.spread_env.length > 1) || s.space);
+  if (m === 'rot') return !!(s.rot_env && s.rot_env.length > 1);
   return laneExists(s, m);
 }
 const stackKey = m => m;   // v71: each lane shows / hides on its own (the eye in the Lane menu)
 const laneShown = (s, m) => stackShow[stackKey(m)] != null ? stackShow[stackKey(m)] : laneDrawn(s, m);
 function laneName(s, m) {
-  if (m === 'vol') return 'Loudness'; if (m === 'pan') return 'Pan'; if (m === 'spread') return 'Spread';
+  if (m === 'vol') return 'Loudness'; if (m === 'pan') return 'Pan'; if (m === 'spread') return 'Spread'; if (m === 'rot') return 'Rotation';
   const ml = s.mods[+m[3]], pr = layerSoundOf(s), d = pr && modDef(pr.engine, ml.k);
   return (+m[3] + 1) + ' · ' + modShort(d ? d.l : (ml.l || ml.k));
 }
@@ -6419,6 +6443,7 @@ function laneEnvFor(s, m) {
   if (m === 'vol') return unitEnv(s);
   if (m === 'pan') return rawPanEnv(s);
   if (m === 'spread') return (s.spread_env && s.spread_env.length > 1) ? s.spread_env : spreadFlatOf(s);
+  if (m === 'rot') return rotEnv(s);
   const ml = s.mods && s.mods[+m[3]]; return ml ? ml.pts : null;
 }
 function renderStack() {
@@ -6428,7 +6453,7 @@ function renderStack() {
   row.hidden = !stackOn;
   document.documentElement.style.setProperty('--stripH', stackTall ? '104px' : '56px');
   $('stackTall').setAttribute('aria-pressed', String(stackTall)); $('stackTall').classList.toggle('on', stackTall);
-  $('stackShow').innerHTML = [['vol', 'Loudness'], ['pan', 'Pan'], ['spread', 'Spread'], ['mod', 'Modulation']].map(([k, l]) => {
+  $('stackShow').innerHTML = [['vol', 'Loudness'], ['pan', 'Pan'], ['spread', 'Spread'], ['rot', 'Rotation'], ['mod', 'Modulation']].map(([k, l]) => {
     const on = s ? (k === 'mod' ? (stackShow.mod != null ? stackShow.mod : !!(s.mods && s.mods.length)) : laneShown(s, k)) : !!stackShow[k];
     return `<button class="chip${on ? ' on' : ''}" data-sshow="${k}" aria-pressed="${on}">${l}</button>`;
   }).join('');
@@ -6487,7 +6512,7 @@ function volDrawn(s) {
 }
 const MARK_KEY = 'lhEnvMarks';
 let envMarks = true; try { envMarks = localStorage.getItem(MARK_KEY) !== '0'; } catch (e) { }
-const laneMark = m => m === 'vol' ? 'L' : m === 'pan' ? 'P' : m === 'spread' ? 'S' : String(+m[3] + 1);
+const laneMark = m => m === 'vol' ? 'L' : m === 'pan' ? 'P' : m === 'spread' ? 'S' : m === 'rot' ? 'R' : String(+m[3] + 1);
 const drawnLanes = s => LANE_ORDER.filter(m => laneExists(s, m) && laneDrawn(s, m));
 let markRects = [];
 // v82: the marks sit just above where the object's graphic STARTS (its top at its first moment, not the top of its
@@ -6569,6 +6594,13 @@ function drawLane() {
       if (i % 2 === 0) { c.fillStyle = '#6b3f73'; c.textAlign = 'right'; c.fillText(mlD ? modFmt(mlD, modDenorm(mlD, v)) : '', x0 - 6, y); }
     }
     if (s && !mlD) { c.fillStyle = '#8a7f72'; c.textAlign = 'center'; c.font = '12px "Public Sans", system-ui, sans-serif'; c.fillText("This layer's sound doesn't have this control. The envelope is kept.", (x0 + x1) / 2, LM.t + 14); c.font = '10px "IBM Plex Mono", ui-monospace, monospace'; }
+  } else if (rotMode()) {          // v91 rotation grid: full speed at the top, still in the middle, backwards below
+    const labs = ['+100%', '+50%', 'still', '−50%', '−100%'];
+    for (let i = 0; i <= 4; i++) {
+      const v = 1 - i / 4, y = Math.round(VY(v));
+      c.fillStyle = i === 2 ? 'rgba(46,38,31,0.22)' : (i === 0 || i === 4 ? 'rgba(46,38,31,0.12)' : 'rgba(46,38,31,0.06)'); c.fillRect(x0, y, x1 - x0, 1);
+      c.fillStyle = '#8a7f72'; c.textAlign = 'right'; c.fillText(labs[i], x0 - 6, y);
+    }
   } else if (spreadMode()) {       // v65 spread grid: the full law at the top, all at the centre at the bottom
     for (let i = 0; i <= 4; i++) {
       const v = 1 - i / 4, y = Math.round(VY(v));
@@ -6697,7 +6729,7 @@ const LFO_DEF = { amp_db: 9, baseline_db: -12, phase: 0, fskew: 0, askew: 0, til
 // automation-item LFO: shape, baseline and depth make the points across its section; outside it the lane keeps its
 // drawn points. Its settings stay with the lane (lane_lfo / mods[i].lfo) so it stays editable, and the points are what
 // plays, so the Mac hears it with no extra maths. s.lfo (the older loudness-only LFO, from saved sketches) still plays.
-const laneLfoKey = () => panMode() ? 'pan' : spreadMode() ? 'spread' : (state.envTarget === 'unit' ? 'vol' : 'note:' + state.envTarget);
+const laneLfoKey = () => panMode() ? 'pan' : spreadMode() ? 'spread' : rotMode() ? 'rot' : (state.envTarget === 'unit' ? 'vol' : 'note:' + state.envTarget);
 function laneLfo(s) {
   if (!s) return null;
   if (modIdx() >= 0) { const m = modLane(s); return (m && m.lfo) || null; }
@@ -6719,7 +6751,7 @@ function newLaneLfo(s) {
   const cur = targetEnv(s), mid = envAt(cur, 0.5), f = newLfo();
   delete f.ride; delete f.baseline_db; delete f.amp_db;
   if (!valMode()) { f.baseline = 0.8; f.amp = 0.15; }            // −12 dB, ± 9 dB
-  else { f.baseline = +mid.toFixed(3); f.amp = +Math.max(0.1, Math.min(panMode() ? 0.5 : 0.3, mid, 1 - mid)).toFixed(3); }
+  else { f.baseline = +mid.toFixed(3); f.amp = +Math.max(0.1, Math.min(panMode() || rotMode() ? 0.5 : 0.3, mid, 1 - mid)).toFixed(3); }
   f.under = cur.map(p => p.slice());
   return f;
 }
@@ -6770,6 +6802,7 @@ function regenLaneLfo(s) {
 // the value shown on the Depth and Baseline sliders, in the lane's own terms
 function laneValFmt(s, v, isAmp) {
   if (!valMode()) return isAmp ? '±' + (v * ENV_DB).toFixed(1) + ' dB' : vToDb(v) + ' dB';
+  if (rotMode()) return isAmp ? '±' + Math.round(v * 200) + '%' : (Math.abs(v - 0.5) < 0.005 ? 'still' : (v > 0.5 ? '+' : '−') + Math.round(Math.abs(v - 0.5) * 200) + '% speed');
   if (panMode()) return isAmp ? '±' + Math.round(v * 200) + '%' : (Math.abs(v - 0.5) < 0.005 ? 'C' : (v < 0.5 ? 'L ' : 'R ') + Math.round(Math.abs(v - 0.5) * 200));
   const ml = modLane(s), pr = ml && layerSoundOf(s), d = ml && pr && modDef(pr.engine, ml.k);
   if (d && !isAmp) return modFmt(d, modDenorm(d, v)) + (modUnit(d) ? ' ' + modUnit(d) : '');
@@ -6825,6 +6858,7 @@ function lfoDone() { lfoUndoKey = null; changed(false); }
 $('laneVol').addEventListener('click', () => setLaneMode('vol'));
 $('lanePan').addEventListener('click', () => setLaneMode('pan'));
 $('laneSpread').addEventListener('click', () => setLaneMode('spread'));
+$('laneRot').addEventListener('click', () => setLaneMode('rot'));
 $('laneStackBtn').addEventListener('click', () => { stackOn = !stackOn; saveStack(); renderStack(); status(stackOn ? 'Stack: the object\'s other lanes show above the one you edit. Tap one to edit it; Show picks which.' : 'One lane at a time.'); });
 $('stackTall').addEventListener('click', () => { stackTall = !stackTall; saveStack(); renderStack(); });
 $('lfoShape').innerHTML = LFO_SHAPES.map(([k, l]) => `<option value="${k}">${l}</option>`).join('');
@@ -7482,12 +7516,12 @@ resize();
   }));
   document.addEventListener('pointerdown', e => { if (!menus.some(([b, p]) => p.contains(e.target) || b.contains(e.target))) close(); }, true);
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && menus.some(([, p]) => !p.hidden)) close(); }, true);
-  pLane.addEventListener('click', e => { if (e.target.closest('#laneVol, #lanePan, #laneSpread, [data-mod]')) setTimeout(close, 0); }, true);
+  pLane.addEventListener('click', e => { if (e.target.closest('#laneVol, #lanePan, #laneSpread, #laneRot, [data-mod]')) setTimeout(close, 0); }, true);
   pShape.addEventListener('click', e => { if (e.target.closest('#shapes button, #shapes .chip, #lfoBtn')) setTimeout(close, 0); }, true);
   pEdit.addEventListener('click', e => { if (e.target.closest('button')) setTimeout(close, 0); }, true);
   const setT = (b, t) => { if (b.textContent !== t) b.textContent = t; };
   const upd = () => {
-    const on = [$('laneVol'), $('lanePan'), $('laneSpread')].find(b => b.classList.contains('on')) || $('modChips').querySelector('.chip.on');
+    const on = [$('laneVol'), $('lanePan'), $('laneSpread'), $('laneRot')].find(b => b.classList.contains('on')) || $('modChips').querySelector('.chip.on');
     setT(bLane, (on ? on.textContent.trim() : 'Lane') + ' ▾');
     setT(bStack, ($('laneStackBtn').classList.contains('on') ? 'Stack ✓' : 'Stack') + ' ▾');
   };

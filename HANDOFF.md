@@ -1075,3 +1075,8 @@ Queue started 8 Nov 2026, after v69. Copy into LH_Palette_Handoff/HANDOFF.md ("N
 ## v90 (11 Nov)
 - Settings › Score › Listening: Stereo (speakers) | Binaural 3D (headphones); saved as localStorage lhSpatMode. Binaural = one HRTF PannerNode per voice (schedule(): pn.hrtf), position on a unit circle (x = sin az, z = -cos az) automated with setValueCurveAtTime, so each voice follows its full Space azimuth (applySpace now also keeps x.az in degrees, extended through release tails). Voices without a Space lane: asin(stereo pan), in front. Stereo sources (Breath) summed ×0.5 into the panner. Level BIN_K 0.785 = matched to the stereo panner (sine 440 and Breath within 0.5 dB). Binaural voices cost +2 and the voice limit is halved (playLim). Test hook __lh.spatTest(mode, azAt(u), secs).
 - Mac parity: binaural monitoring in REAPER (8-ch synth output → binaural decoder, or an LH binaural output mode); to discuss.
+
+## v91 (11 Nov)
+- Rotation up to ±64 turns across the object (was ±8); the Settings slider is cubic (slToRot / rotToSl) so small values stay easy.
+- Rotation lane (lane button "Rotation", mark R, stack row, LFO key 'rot'): s.rot_env = speed over the object, 0.5 still, 1 = space.rotate, 0 = the same backwards. Angle = 360 × rotate × running integral of (2·speed − 1) (rotTurnsFn, 512 steps); a flat top lane = the old steady rotation; rotate 0 with a lane = 1 turn. Split keeps rot_env.
+- Mac (same day, NOT yet run in REAPER): lhs_env.lua SPACE_DEFS.rot + lane menu / stack / removal; lhs_model.lua space_fns integrates rot_env the same way; lhs_app.lua Rotation slider ±64 cubic; lhs_edit.lua split keeps rot_env. Backup: script backups/LH Score Tool lib before rotation lane 2026-11-11.
