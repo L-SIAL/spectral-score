@@ -1063,3 +1063,25 @@ Queue started 8 Nov 2026, after v69. Copy into LH_Palette_Handoff/HANDOFF.md ("N
 
 ## v88 (9 Nov)
 - Help window title is now "Help – Spectral Score" (was "How to use the sketchpad"; `#helpTitle` in the help overlay).
+
+## LH Audio Editor v1 (11 Nov 2026) — a second, separate iPad app
+For editing singing-lesson recordings. Source `editor/lh-audio-editor_v1.html` (a full page, no build step);
+`standalone/build.py` copies it to `site/editor/` with its own manifest, service worker (`lh-audio-` cache) and a drawn icon.
+Published at https://l-sial.github.io/spectral-score/editor/ (Add to Home Screen = "LH Audio"). The palette's service
+worker now ignores `/editor/` so the two apps don't serve each other's pages. Workflow also runs on `editor/**`.
+- Open: ☰ › Open audio file… (Files: Dropbox, Downloads…). Decoded with Web Audio; a copy of the file's bytes and the
+  edit (JSON) are kept in IndexedDB `lh-audio-editor` (stores projects / files), so the last edit reopens at launch.
+  Opening the same file (name + size) again offers "Open my edit / Start a new edit". Remove (asks) deletes only the app's copy.
+- Model: `proj.tracks[0..1]` (Recording, Excerpts), clips `{id, s0, s1, pos, name}` point into the one source (non-destructive);
+  `proj.markers [{id, t, note}]`. Undo = JSON snapshots of tracks + markers (`edit()`, `pushUndo`).
+- Select tool: drag = time selection (snaps to markers / clip edges), drag its edges, double-tap = region between markers
+  (`regionSelect`). Move tool: drag clip (and between tracks), trim ends, drag empty space to scroll. Pinch zoom,
+  two-finger scroll, overview strip at the top.
+- Selection › Move to Excerpts (splits the recording, leaves a gap) / Copy to Excerpts (`selToOther`). New excerpts are
+  named after the marker they start at. Clip bar: name, Play clip, Share, Split at cursor, Duplicate, To other track, Delete.
+- Markers: + Marker / M (at the play head while playing), notes typed in the Markers list, Copy / Share as text.
+- Export: `renderRange` → `wavBytes` (source rate, 24-bit default, 16-bit with TPDF dither as an option in ☰) →
+  share sheet (`navigator.share({files})`, e.g. Notes or Save to Files), else a download. Share all / Join & share.
+- 3 ms exponential fades at every clip edge on playback (`FIN`/`FOUT` curves) and export (`fadeAt`). Loop selection (L).
+- Test hooks: `window.__lha`. Tested headless (1180×820 and 820×1180): open WAV, markers, drag-select, move, rename,
+  export (24-bit, right length), undo/redo, reload restores. Not yet tried on the iPad itself (touch, share to Notes).

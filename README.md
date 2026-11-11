@@ -2,6 +2,9 @@
 
 The installable iPad app: https://l-sial.github.io/spectral-score/
 
+Second app, **LH Audio Editor** (for lesson recordings): https://l-sial.github.io/spectral-score/editor/
+— open it in Safari › Share › Add to Home Screen.
+
 ## Changing the app from the iPad
 1. Claude app › menu (☰) › **Code** (or claude.ai/code in Safari).
 2. Tap the GitHub button by the message box › **Change repository** › **L-SIAL/spectral-score**.

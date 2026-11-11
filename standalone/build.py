@@ -4,7 +4,7 @@
 Usage:  python3 build.py            (uses the newest ipad/lh-spectral-palette-sketchpad_vNN.html)
         python3 build.py v57         (a specific version)
 
-Writes site/: index.html, manifest.webmanifest, sw.js, icons/.
+Writes site/: index.html, manifest.webmanifest, sw.js, icons/, and site/editor/ (the LH Audio Editor).
 The artifact file is never changed. Re-run after every new iPad version, then upload site/.
 """
 import glob, os, re, sys, hashlib, datetime
@@ -106,6 +106,7 @@ self.addEventListener('fetch', e => {
   const ours = url.origin === self.location.origin;
   const fonts = url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com';
   if (!ours && !fonts) return;
+  if (ours && url.pathname.indexOf('/editor/') >= 0) return;   // the audio editor is a separate app with its own cache
   const key = (ours && req.mode === 'navigate') ? 'index.html' : req;
   e.respondWith(caches.open(CACHE).then(async c => {
     const hit = await c.match(key, { ignoreSearch: ours });
@@ -142,6 +143,90 @@ def make_icons():
     for n in (180, 192, 512):
         im.resize((n, n), Image.LANCZOS).save(os.path.join(SITE, 'icons', f'icon-{n}.png'))
 
+EDITOR = os.path.join(HERE, '..', 'editor')
+
+ED_SW = """/* LH Audio Editor offline cache, build __BUILD__ */
+const CACHE = 'lh-audio-__BUILD__';
+const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png'];
+self.addEventListener('install', e => {
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
+});
+self.addEventListener('activate', e => {
+  e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith('lh-audio-') && k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
+});
+// Use what's on the iPad straight away; fetch a fresh copy in the background when online.
+self.addEventListener('fetch', e => {
+  const req = e.request;
+  if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin || url.pathname.indexOf('/editor/') < 0) return;
+  const key = req.mode === 'navigate' ? 'index.html' : req;
+  e.respondWith(caches.open(CACHE).then(async c => {
+    const hit = await c.match(key, { ignoreSearch: true });
+    const net = fetch(req).then(r => { if (r && r.ok) c.put(key, r.clone()); return r; }).catch(() => null);
+    if (hit) { e.waitUntil(net); return hit; }
+    return (await net) || new Response('Offline and not yet saved on this iPad. Open the app once while online.', { status: 503, headers: { 'Content-Type': 'text/plain' } });
+  }));
+});
+"""
+
+ED_MANIFEST = """{
+  "name": "LH Audio Editor",
+  "short_name": "LH Audio",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f2ede2",
+  "theme_color": "#f2ede2",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
+"""
+
+def editor_icon(out_dir):
+    # Drawn here (no source file): plum square, a sage waveform, two markers and a lifted excerpt.
+    from PIL import Image, ImageDraw
+    import math
+    N = 1024
+    im = Image.new('RGB', (N, N), (59, 42, 64)); d = ImageDraw.Draw(im)
+    mid = 430
+    for i in range(64):
+        x = 120 + i * 12.5
+        a = (0.25 + 0.75 * abs(math.sin(i * 0.37) * math.sin(i * 0.11 + 1))) * 190
+        d.rounded_rectangle([x, mid - a, x + 7, mid + a], radius=3, fill=(159, 199, 190))
+    for mx in (330, 650):
+        d.rectangle([mx - 4, 170, mx + 4, 690], fill=(226, 120, 90)); d.rectangle([mx - 4, 150, mx + 70, 200], fill=(226, 120, 90))
+    d.rounded_rectangle([330, 750, 650, 880], radius=24, fill=(196, 150, 200))
+    for i in range(24):
+        x = 352 + i * 11.5; a = (0.3 + 0.7 * abs(math.sin(i * 0.5))) * 46
+        d.rectangle([x, 815 - a, x + 6, 815 + a], fill=(59, 42, 64))
+    os.makedirs(os.path.join(out_dir, 'icons'), exist_ok=True)
+    for n in (180, 192, 512):
+        im.resize((n, n), Image.LANCZOS).save(os.path.join(out_dir, 'icons', f'icon-{n}.png'))
+
+def build_editor():
+    # The audio editor: editor/lh-audio-editor_vNN.html (already a full page) -> site/editor/
+    files = glob.glob(os.path.join(EDITOR, 'lh-audio-editor_v*.html'))
+    if not files:
+        return
+    def ver(p):
+        m = re.search(r'_v(\d+)\.html$', p)
+        return int(m.group(1)) if m else -1
+    src = max(files, key=ver)
+    html = open(src, encoding='utf-8').read()
+    build = f'v{ver(src)}-' + datetime.datetime.now().strftime('%Y%m%d-%H%M') + '-' + hashlib.sha1(html.encode()).hexdigest()[:6]
+    out = os.path.join(SITE, 'editor')
+    os.makedirs(out, exist_ok=True)
+    open(os.path.join(out, 'index.html'), 'w', encoding='utf-8').write(html)
+    open(os.path.join(out, 'sw.js'), 'w', encoding='utf-8').write(ED_SW.replace('__BUILD__', build))
+    open(os.path.join(out, 'manifest.webmanifest'), 'w', encoding='utf-8').write(ED_MANIFEST)
+    editor_icon(out)
+    print('built editor', build, 'from', os.path.basename(src))
+
 def main():
     src = pick_source()
     html = open(src, encoding='utf-8').read()
@@ -164,6 +249,7 @@ def main():
     open(os.path.join(SITE, '.nojekyll'), 'w').write('')
     make_icons()
     print('built', build, 'from', os.path.basename(src))
+    build_editor()
 
 if __name__ == '__main__':
     main()
