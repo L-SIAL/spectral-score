@@ -1,6 +1,6 @@
 # LH Spectral Palette (iPad app) — working notes for Claude
 
-The user (Lawrence) is a composer. This repo holds the iPad app's source and publishes it. While travelling
+The user is a composer. This repo holds the iPad app's source and publishes it. While travelling
 they work only on the iPad, through Claude on the web/app, so this repo is the master copy of the iPad app
 until they are back at the Mac (the Mac copy is on their LH_PORTABLE drive and is synced from here later).
 
@@ -47,7 +47,17 @@ until they are back at the Mac (the Mac copy is on their LH_PORTABLE drive and i
 - Menus under the score are built by the IIFE at the end of the script (its own `$`).
 - `window.__lh` exposes test hooks (fromJSON, toJSON, unitVoices, setLaneMode, state, …).
 
-## Where we are (10 Nov 2026, from the last Mac session)
+## Private notes (read first if you can)
+The private repo **L-SIAL/spectral-score-notes** has the full chat history with Claude on the Mac, the manuals,
+the user's preferences and a snapshot of the Mac Score Tool. If you have access, read its README.md first.
+Never copy anything from it into this public repo.
+
+## Where we are (12 Nov 2026, last Mac session before travel)
+- v91 Rotation up to ±64 turns + a Rotation lane (speed over time; below the middle = backwards).
+- v90 Listening: Stereo or Binaural 3D (headphones), one HRTF panner per voice.
+- Mac: rotation lane written, not yet run in REAPER.
+
+## Earlier (10 Nov)
 The newest version is the one in `ipad/`. Recent work, newest first (details in HANDOFF.md):
 - v87 the play head moves while one object plays alone (▶ Object / ⇧Space).
 - v86 Shape · Fan in (mirror of Fan out). v84/v85 Object panel buttons in pairs — BUT the Shape · Block buttons

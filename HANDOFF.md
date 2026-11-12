@@ -1,7 +1,7 @@
 # LH Spectral Palette: handoff for Mac development and return to iPad
 
-*Prepared 2 November 2026 from the iPad session "LH Sandstorm synth: FM, combs, iPad painter". For Lawrence Harvey.*
-*Start the Mac session in the E42262 folder with Remote Control on, then say: "Read LH_Palette_Handoff/HANDOFF.md and continue."*
+*Prepared 2 November 2026 from the iPad session "LH Sandstorm synth: FM, combs, iPad painter". For the user.*
+*Start the Mac session in the home folder with Remote Control on, then say: "Read LH_Palette_Handoff/HANDOFF.md and continue."*
 
 ---
 
@@ -277,9 +277,9 @@ The full code is in `reference_core_maths.js`. In summary:
 
 ---
 
-## 10. From UPIC (to complete in Lawrence's words)
+## 10. From UPIC (to complete in the user's words)
 
-Lawrence worked at **Les Ateliers UPIC in Paris in the 1990s**. Concepts to decide on deliberately:
+The user worked at **Les Ateliers UPIC in Paris in the 1990s**. Concepts to decide on deliberately:
 - **Pages and their sequencing** versus one timeline.
 - **Banks:** separate libraries of waveforms and envelopes assigned to arcs. The shape library is a first step.
 - **Playing a page live**, in real time.
@@ -296,15 +296,15 @@ Lawrence worked at **Les Ateliers UPIC in Paris in the 1990s**. Concepts to deci
 - **Denis Smalley:** spectromorphology (1997, *Organised Sound* 2(2)) and spatiomorphology. **Manuella Blackburn:** visual sound-shapes. **Cat Hope:** animated graphic notation (Decibel ScorePlayer).
 - **IanniX**; **Trajectoires** (Garcia, Favory and Bresson, 2016: iPad spatial trajectories over OSC); IRCAM ASAP apps; INScore.
 - **Techniques:** Chowning (FM); Serra (sinusoids plus noise); Ramer–Douglas–Peucker and Visvalingam–Whyatt (line simplification); Fritsch–Carlson (monotone curves).
-- **AI disclosure:** developed with Claude (Anthropic) from Lawrence's designs and under his direction. The session transcript records where the design came from. Check each venue's policy and RMIT's.
+- **AI disclosure:** developed with Claude (Anthropic) from the user's designs and under his direction. The session transcript records where the design came from. Check each venue's policy and the university's.
 - **Framing:** "a contribution building on…", never "the first".
 
 ---
 
 ## 12. How to work from here
 
-1. On the Mac, unzip this package into **E42262** (it makes one `LH_Palette_Handoff` folder).
-2. In the Claude desktop app: **Settings › Claude Code › Remote Control** → add **E42262**, or your toolkit folder.
+1. On the Mac, unzip this package into **home** (it makes one `LH_Palette_Handoff` folder).
+2. In the Claude desktop app: **Settings › Claude Code › Remote Control** → add **home**, or your toolkit folder.
 3. Start Claude Code in that folder and say: *"Read LH_Palette_Handoff/HANDOFF.md, then look at LH_Spectral_Band_MIDI_GUI and LH UPIC MIDI and tell me which route fits (section 6.1) before building."*
 4. Build order suggested in the overview, updated:
    1. Region commit and load back in REAPER
@@ -338,7 +338,7 @@ Lawrence worked at **Les Ateliers UPIC in Paris in the 1990s**. Concepts to deci
 `ipad/lh-spectral-palette-sketchpad-v16.html`, published to the same link (artifact version 16).
 
 - **Splash is shown as Impulse** everywhere you see it: the toolbar, help, messages and the envelope lane. The key is **I** (S still works). The file still says `splash`.
-- **✥ Select / move** toggle in the toolbar, plus the key **S** (Lawrence's choice, under the left hand; M also works). Impulse is **I** only. It switches the Pencil and trackpad between drawing and selecting / moving units, and goes back to the last drawing tool. ⌘ held and press-and-hold still work.
+- **✥ Select / move** toggle in the toolbar, plus the key **S** (the user's choice, under the left hand; M also works). Impulse is **I** only. It switches the Pencil and trackpad between drawing and selecting / moving units, and goes back to the last drawing tool. ⌘ held and press-and-hold still work.
 - **A 4 px threshold** before a drag moves a unit, so a tap only selects (as on the Mac).
 - **Next (step 2):** blocks (chords) drawn, moved and heard on the iPad.
 
@@ -392,7 +392,7 @@ Lawrence worked at **Les Ateliers UPIC in Paris in the 1990s**. Concepts to deci
 
 `ipad/lh-spectral-palette-sketchpad-v20.html`, published to the same link (artifact version 21).
 
-- **Toolbar:** the row of layer colour dots is now one button showing the current layer (colour + name ▾), at Lawrence's request, to save space. It opens a list of the layers (marked background / hidden / muted); picking one closes it. Esc or a tap outside also closes it.
+- **Toolbar:** the row of layer colour dots is now one button showing the current layer (colour + name ▾), at the user's request, to save space. It opens a list of the layers (marked background / hidden / muted); picking one closes it. Esc or a tap outside also closes it.
 - **Layer views, as on the Mac:**
   - each layer is **full ● / faded into the background ◐ / hidden ○**;
   - the layer you draw on is always shown full and drawn on top;
